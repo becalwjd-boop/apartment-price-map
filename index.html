@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>전국 아파트 시세 지도</title>
+
+  <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <!-- 여기에 본인 카카오 JavaScript 키 입력 -->
+  <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=e20cff92c58427130124c1da5daeecc3&libraries=services"></script>
+</head>
+
+<body>
+  <header class="top-bar">
+    <div class="title">🏘 전국 아파트 시세 지도</div>
+
+    <select id="regionSelect">
+      <option value="">지역 선택</option>
+    </select>
+
+    <select id="mapTypeSelect">
+      <option value="basic">기본 지도</option>
+      <option value="skyview">위성 지도</option>
+      <option value="terrain">지적 지도</option>
+    </select>
+
+    <label class="upload-btn">
+      📊 CSV 업로드
+      <input type="file" id="csvInput" accept=".csv" hidden />
+    </label>
+
+    <button id="captureBtn">📷 화면 저장</button>
+  </header>
+
+  <main class="layout">
+    <aside class="side-panel">
+      <div class="list-header">
+        단지 목록 (<span id="aptCount">0</span>개)
+      </div>
+
+      <input 
+        type="text" 
+        id="searchInput" 
+        placeholder="단지명 검색" 
+      />
+
+      <div class="check-all">
+        <label>
+          <input type="checkbox" id="checkAll" checked />
+          전체 표시
+        </label>
+      </div>
+
+      <div class="size-filter">
+        <div class="filter-title">평형대</div>
+
+        <label>
+          <input type="checkbox" class="sizeCheck" value="10" checked />
+          10평대
+        </label>
+
+        <label>
+          <input type="checkbox" class="sizeCheck" value="20" checked />
+          20평대
+        </label>
+
+        <label>
+          <input type="checkbox" class="sizeCheck" value="30" checked />
+          30평대
+        </label>
+
+        <label>
+          <input type="checkbox" class="sizeCheck" value="40" checked />
+          40평대
+        </label>
+
+        <label>
+          <input type="checkbox" class="sizeCheck" value="50" checked />
+          50평대+
+        </label>
+      </div>
+
+      <div id="aptList" class="apt-list"></div>
+
+      <div id="resizeHandle" class="resize-handle"></div>
+    </aside>
+
+    <section class="map-area">
+      <div id="map"></div>
+
+      <div class="legend">
+        <button id="legendToggle">가격 색상표 보기</button>
+        <div id="legendContent" class="legend-content hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
