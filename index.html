@@ -10,7 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
   <!-- 여기에 본인 카카오 JavaScript 키 입력 -->
-  <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=e20cff92c58427130124c1da5daeecc3&libraries=services"></script>
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=e20cff92c58427130124c1da5daeecc3&libraries=services"></script>
 </head>
 
 <body>
@@ -47,11 +47,14 @@
         placeholder="단지명 검색" 
       />
 
-      <div class="check-all">
-        <label>
-          <input type="checkbox" id="checkAll" checked />
-          전체 표시
-        </label>
+      <div class="select-buttons">
+        <button id="selectAllBtn" class="reset-filter-btn">
+          전체 선택
+        </button>
+
+        <button id="unselectAllBtn" class="reset-filter-btn">
+          전체 해제
+        </button>
       </div>
 
       <div class="size-filter">
@@ -81,6 +84,32 @@
           <input type="checkbox" class="sizeCheck" value="50" checked />
           50평대+
         </label>
+      </div>
+
+      <div class="price-filter">
+        <button type="button" id="priceToggle" class="filter-toggle">
+          가격대 ▼
+        </button>
+
+        <div id="priceContent" class="price-content">
+          <div class="price-inputs">
+            <label>
+              최소
+              <input type="number" id="minPriceInput" value="1" min="1" max="50" />
+              억
+            </label>
+
+            <label>
+              최대
+              <input type="number" id="maxPriceInput" value="50" min="1" max="50" />
+              억
+            </label>
+          </div>
+
+          <button id="applyPriceBtn" class="apply-price-btn">
+            가격대 적용
+          </button>
+        </div>
       </div>
 
       <div id="aptList" class="apt-list"></div>

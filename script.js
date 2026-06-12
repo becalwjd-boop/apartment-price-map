@@ -133,13 +133,30 @@ document.getElementById("searchInput").addEventListener("input", function () {
   drawSelectedRegion();
 });
 
-document.getElementById("checkAll").addEventListener("change", function () {
-  const checked = this.checked;
+document.getElementById("selectAllBtn").addEventListener("click", function () {
 
-  document.querySelectorAll(".apt-check").forEach(checkbox => {
-    checkbox.checked = checked;
+  document.querySelectorAll(".apt-check").forEach(cb => {
+    cb.checked = true;
   });
 
+  drawSelectedRegion();
+});
+
+document.getElementById("unselectAllBtn").addEventListener("click", function () {
+
+  document.querySelectorAll(".apt-check").forEach(cb => {
+    cb.checked = false;
+  });
+
+  drawSelectedRegion();
+});
+
+document.getElementById("priceToggle").addEventListener("click", function () {
+  document.getElementById("priceContent").classList.toggle("hidden");
+});
+
+document.getElementById("applyPriceBtn").addEventListener("click", function () {
+  renderApartmentList();
   drawSelectedRegion();
 });
 
@@ -156,8 +173,10 @@ function getFilteredApartments() {
   const checkedSizes = [...document.querySelectorAll(".sizeCheck:checked")]
     .map(el => Number(el.value));
 
-  return apartmentData.filter(row => {
+  const minPrice = Number(document.getElementById("minPriceInput").value) || 1;
+  const maxPrice = Number(document.getElementById("maxPriceInput").value) || 50;
 
+  return apartmentData.filter(row => {
     const region = makeRegionName(row);
     const aptName = clean(row["단지"]);
 
@@ -180,10 +199,16 @@ function getFilteredApartments() {
     const sizeMatch =
       checkedSizes.includes(sizeGroup);
 
+    const priceEok = parsePriceToEok(row["매매"]);
+
+    const priceMatch =
+      priceEok >= minPrice && priceEok < maxPrice + 1;
+
     return (
       regionMatch &&
       searchMatch &&
-      sizeMatch
+      sizeMatch &&
+      priceMatch
     );
   });
 }

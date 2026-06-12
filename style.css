@@ -344,3 +344,69 @@ body {
     bottom: 8px;
   }
 }
+
+.reset-filter-btn,
+.filter-toggle,
+.apply-price-btn {
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 8px 10px;
+  border: 1px solid #2f6f9f;
+  border-radius: 6px;
+  background: #174a78;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reset-filter-btn:hover,
+.filter-toggle:hover,
+.apply-price-btn:hover {
+  background: #21639b;
+}
+
+.price-filter {
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.price-content {
+  padding: 0 8px 8px;
+}
+
+.price-content.hidden {
+  display: none;
+}
+
+.price-inputs {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.price-inputs label {
+  flex: 1;
+  color: white;
+  font-size: 13px;
+}
+
+.price-inputs input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px;
+  border-radius: 4px;
+  border: none;
+  box-sizing: border-box;
+}
+
+.select-buttons {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+}
+
+.select-buttons button {
+  flex: 1;
+  margin: 0;
+}
