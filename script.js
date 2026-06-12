@@ -367,11 +367,11 @@ function getOverlayOffset(index, total) {
 
   const level = map.getLevel();
 
-  let gap = 150;
+  let gap = 190;
 
-  if (level >= 8) gap = 65;
-  else if (level >= 6) gap = 105;
-  else gap = 150;
+  if (level >= 8) gap = 95;
+  else if (level >= 6) gap = 145;
+  else gap = 190;
 
   const positions = [
     { x: 0, y: 0 },
