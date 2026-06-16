@@ -157,7 +157,7 @@ document.getElementById("regionSelect").addEventListener("change", function () {
   selectedRegion = this.value;
   hasMovedToFirstApt = false;
   renderApartmentList();
-  drawSelectedRegion();
+  drawSelectedRegion(true);
 });
 
 document.getElementById("searchInput").addEventListener("input", function () {
@@ -293,12 +293,14 @@ function clearOverlays() {
   overlays = [];
 }
 
-function drawSelectedRegion() {
+function drawSelectedRegion(moveToFirst = false) {
   drawVersion++;
   const currentVersion = drawVersion;
 
   failedAptList = [];
-  hasMovedToFirstApt = false;
+  if (moveToFirst) {
+    hasMovedToFirstApt = false;
+  }
 
   clearOverlays();
 
@@ -323,7 +325,7 @@ function drawSelectedRegion() {
 
       drawGroup(groupRows, position);
 
-      if (!hasMovedToFirstApt) {
+      if (moveToFirst && !hasMovedToFirstApt) {
         map.setCenter(position);
         map.setLevel(5);
         hasMovedToFirstApt = true;
@@ -383,7 +385,7 @@ function searchApartmentPosition(groupRows, version) {
 
     drawGroup(groupRows, position);
 
-    if (!hasMovedToFirstApt) {
+    if (moveToFirst && !hasMovedToFirstApt) {
       map.setCenter(position);
       map.setLevel(5);
       hasMovedToFirstApt = true;
@@ -426,7 +428,7 @@ function searchApartmentPosition(groupRows, version) {
 
     drawGroup(groupRows, position);
 
-    if (!hasMovedToFirstApt) {
+    if (moveToFirst && !hasMovedToFirstApt) {
       map.setCenter(position);
       map.setLevel(5);
       hasMovedToFirstApt = true;
