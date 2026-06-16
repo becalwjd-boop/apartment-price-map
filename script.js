@@ -92,7 +92,14 @@ async function loadGoogleSheetCsv() {
   console.log("구글 시트 불러오기 시작");
 
   try {
-    const response = await fetch(GOOGLE_SHEET_CSV_URL + "&cacheBust=" + Date.now());
+    const csvUrl = GOOGLE_SHEET_CSV_URL + "&t=" + Date.now();
+
+    console.log("CSV 요청 주소:", csvUrl);
+
+    const response = await fetch(csvUrl, {
+      cache: "no-store",
+    });
+
     const csvText = await response.text();
 
     console.log("구글 시트 원본:", csvText.slice(0, 500));
@@ -250,7 +257,7 @@ function getFilteredApartments() {
     .map(el => Number(el.value));
 
   const minPrice = Number(document.getElementById("minPriceInput").value) || 1;
-  const maxPrice = Number(document.getElementById("maxPriceInput").value) || 50;
+  const maxPrice = Number(document.getElementById("maxPriceInput").value) || 200;
 
   return apartmentData.filter(row => {
     const region = makeRegionName(row);
