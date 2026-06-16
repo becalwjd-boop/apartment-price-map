@@ -183,7 +183,7 @@ body {
   padding: 5px 7px;
   color: #111;
   font-weight: 700;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   white-space: nowrap;
   line-height: 1.25;
 }
@@ -249,7 +249,7 @@ body {
   border-radius: 6px;
   font-size: 12px;
   color: #111;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .legend-row {
@@ -366,7 +366,7 @@ body {
 }
 
 .price-filter {
-  border-top: 1px solid rgba(255,255,255,0.15);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
   padding-top: 8px;
   margin-top: 8px;
 }
@@ -409,4 +409,40 @@ body {
 .select-buttons button {
   flex: 1;
   margin: 0;
+}
+
+.apt-overlay.tiny {
+  padding: 3px 5px;
+  line-height: 1.15;
+}
+
+.apt-overlay.tiny .overlay-name {
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.apt-overlay.simple {
+  padding: 4px 6px;
+  line-height: 1.18;
+}
+
+.apt-overlay.simple .overlay-name {
+  font-size: 10.5px;
+}
+
+.apt-overlay.simple .overlay-price {
+  font-size: 9.5px;
+}
+
+.apt-overlay.middle {
+  padding: 4px 6px;
+  line-height: 1.2;
+}
+
+.apt-overlay.middle .overlay-name {
+  font-size: 11px;
+}
+
+.apt-overlay.middle .overlay-price {
+  font-size: 10px;
 }

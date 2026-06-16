@@ -1,3 +1,4 @@
+const COORD_CACHE_KEY = "apt_coord_cache";
 const mapContainer = document.getElementById("map");
 
 const mapOption = {
@@ -11,12 +12,20 @@ const ps = new kakao.maps.services.Places();
 const zoomControl = new kakao.maps.ZoomControl();
 map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
 
+let failedAptList = [];
 let apartmentData = [];
 let selectedRegion = "";
 let overlays = [];
 let coordCache = {};
+
+const savedCoords =
+  JSON.parse(localStorage.getItem(COORD_CACHE_KEY) || "{}");
+
+Object.assign(coordCache, savedCoords);
 let drawVersion = 0;
 let hasMovedToFirstApt = false;
+const GOOGLE_SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSjdIMxjf_v_rN6a_1Yr1Xt9DFa1oLUWLDWkrEBlTZ9ETonfS9kY2s1I4WhIifuc5dlaspNiec0_XMV/pub?gid=894623892&single=true&output=csv";
 
 document.getElementById("legendToggle").addEventListener("click", () => {
   document.getElementById("legendContent").classList.toggle("hidden");
@@ -33,50 +42,73 @@ document.getElementById("legendContent").innerHTML = `
   <div class="legend-row"><span style="background:#ff8a65"></span> 7억대</div>
   <div class="legend-row"><span style="background:#f06292"></span> 8억대</div>
   <div class="legend-row"><span style="background:#ba68c8"></span> 9억대</div>
-  <div class="legend-row"><span style="background:#9575cd"></span> 10억 이상</div>
+  <div class="legend-row"><span style="background:#9575cd"></span> 10~12억</div>
+  <div class="legend-row"><span style="background:#7986cb"></span> 12~14억</div>
+  <div class="legend-row"><span style="background:#64b5f6"></span> 14~16억</div>
+  <div class="legend-row"><span style="background:#4dd0e1"></span> 16~18억</div>
+  <div class="legend-row"><span style="background:#4db6ac"></span> 18~20억</div>
+  <div class="legend-row"><span style="background:#80cbc4"></span> 20억 이상</div>
 `;
 
-document.getElementById("csvInput").addEventListener("change", function (event) {
-  const file = event.target.files[0];
-  if (!file) return;
 
-  Papa.parse(file, {
-    header: false,
-    skipEmptyLines: true,
-    encoding: "UTF-8",
-    complete: function (results) {
-      const rows = results.data;
-
-      const headerIndex = rows.findIndex(row =>
-        row.includes("군") &&
-        row.includes("시") &&
-        row.includes("구") &&
-        row.includes("단지")
-      );
-
-      if (headerIndex === -1) {
-        alert("CSV에서 제목줄을 찾지 못했습니다.");
-        return;
-      }
-
-      const headers = rows[headerIndex].map(h => clean(h).replace(/\s+/g, ""));
-      const dataRows = rows.slice(headerIndex + 1);
-
-      apartmentData = dataRows
-        .map(row => {
-          const obj = {};
-          headers.forEach((header, i) => {
-            obj[header] = clean(row[i]);
-          });
-          return obj;
-        })
-        .filter(row => row["단지"]);
-
-      hasMovedToFirstApt = false;
-      makeRegionSelect();
-    },
+function processCsvRows(rows) {
+  const headerIndex = rows.findIndex(row => {
+    const cleaned = row.map(cell => clean(cell).replace(/\s+/g, ""));
+    return cleaned.includes("단지") && cleaned.includes("매매") && cleaned.includes("전세");
   });
-});
+
+  if (headerIndex === -1) {
+    alert("CSV에서 제목줄을 찾지 못했습니다.");
+    return;
+  }
+
+  const headers = rows[headerIndex].map(h => clean(h).replace(/\s+/g, ""));
+  const dataRows = rows.slice(headerIndex + 1);
+
+  apartmentData = dataRows
+    .map(row => {
+      const obj = {};
+      headers.forEach((header, i) => {
+        obj[header] = clean(row[i]);
+      });
+      return obj;
+    })
+    .filter(row => {
+      return (
+        row["단지"] &&
+        !row["단지"].includes("#REF") &&
+        !row["시"]?.includes("#REF") &&
+        !row["구"]?.includes("#REF")
+      );
+    });
+
+  hasMovedToFirstApt = false;
+  makeRegionSelect();
+}
+
+async function loadGoogleSheetCsv() {
+  console.log("구글 시트 불러오기 시작");
+
+  try {
+    const response = await fetch(GOOGLE_SHEET_CSV_URL + "&cacheBust=" + Date.now());
+    const csvText = await response.text();
+
+    console.log("구글 시트 원본:", csvText.slice(0, 500));
+
+    Papa.parse(csvText, {
+      header: false,
+      skipEmptyLines: true,
+      complete: function (results) {
+        console.log("구글 시트 결과:", results.data);
+        processCsvRows(results.data);
+      },
+    });
+  } catch (error) {
+    console.error("구글 시트 CSV 불러오기 실패:", error);
+  }
+}
+
+loadGoogleSheetCsv();
 
 function makeRegionSelect() {
   const regionSelect = document.getElementById("regionSelect");
@@ -265,6 +297,9 @@ function drawSelectedRegion() {
   drawVersion++;
   const currentVersion = drawVersion;
 
+  failedAptList = [];
+  hasMovedToFirstApt = false;
+
   clearOverlays();
 
   const checkedKeys = getCheckedRowKeys();
@@ -279,12 +314,35 @@ function drawSelectedRegion() {
     const groupRows = groups[aptKey];
 
     if (coordCache[aptKey]) {
-      drawGroup(groupRows, coordCache[aptKey]);
+      const saved = coordCache[aptKey];
+
+      const position = new kakao.maps.LatLng(
+        Number(saved.lat),
+        Number(saved.lng)
+      );
+
+      drawGroup(groupRows, position);
+
+      if (!hasMovedToFirstApt) {
+        map.setCenter(position);
+        map.setLevel(5);
+        hasMovedToFirstApt = true;
+      }
+
       return;
     }
 
     searchApartmentPosition(groupRows, currentVersion);
   });
+
+  setTimeout(() => {
+    if (failedAptList.length > 0) {
+      console.warn(
+        "최종 좌표 검색 실패 목록:",
+        [...new Set(failedAptList)]
+      );
+    }
+  }, 3000);
 }
 
 function groupByApt(rows) {
@@ -305,28 +363,66 @@ function groupByApt(rows) {
 
 function searchApartmentPosition(groupRows, version) {
   const row = groupRows[0];
-
   const aptKey = makeAptKey(row);
+
+  const lat = Number(clean(row["위도"]));
+  const lng = Number(clean(row["경도"]));
+
+  if (lat && lng) {
+    const position = new kakao.maps.LatLng(lat, lng);
+
+    coordCache[aptKey] = {
+      lat: position.getLat(),
+      lng: position.getLng(),
+    };
+
+    localStorage.setItem(
+      COORD_CACHE_KEY,
+      JSON.stringify(coordCache)
+    );
+
+    drawGroup(groupRows, position);
+
+    if (!hasMovedToFirstApt) {
+      map.setCenter(position);
+      map.setLevel(5);
+      hasMovedToFirstApt = true;
+    }
+
+    return;
+  }
 
   const city = clean(row["시"]);
   const gu = clean(row["구"]);
   const dong = clean(row["동"]);
   const aptName = clean(row["단지"]);
+  const cleanAptName = aptName.replace(/\(.*?\)/g, "").trim();
 
-  const keyword = `${city} ${gu} ${dong} ${aptName}`;
+  const keywords = [
+    `${city} ${gu} ${dong} ${aptName}`,
+    `${city} ${gu} ${dong} ${cleanAptName}`,
+    `${gu} ${dong} ${cleanAptName}`,
+    `${dong} ${cleanAptName}`,
+    cleanAptName,
+  ];
 
-  ps.keywordSearch(keyword, function (data, status) {
-    if (version !== drawVersion) return;
-
-    if (status !== kakao.maps.services.Status.OK || data.length === 0) {
-      console.log("좌표 검색 실패:", keyword);
+  searchKeywordList(keywords, 0, function (position) {
+    if (!position) {
+      const failedName = `${city} ${gu} ${dong} ${aptName}`;
+      failedAptList.push(failedName);
+      console.log("좌표 검색 실패:", failedName);
       return;
     }
 
-    const place = data[0];
-    const position = new kakao.maps.LatLng(place.y, place.x);
+    coordCache[aptKey] = {
+      lat: position.getLat(),
+      lng: position.getLng(),
+    };
 
-    coordCache[aptKey] = position;
+    localStorage.setItem(
+      COORD_CACHE_KEY,
+      JSON.stringify(coordCache)
+    );
 
     drawGroup(groupRows, position);
 
@@ -338,10 +434,32 @@ function searchApartmentPosition(groupRows, version) {
   });
 }
 
-function drawGroup(groupRows, position) {
-  const total = groupRows.length;
+function searchKeywordList(keywords, index, callback) {
+  if (index >= keywords.length) {
+    callback(null);
+    return;
+  }
 
-  groupRows.forEach((row, index) => {
+  ps.keywordSearch(keywords[index], function (data, status) {
+    if (status === kakao.maps.services.Status.OK && data.length > 0) {
+      const place = data[0];
+      callback(new kakao.maps.LatLng(place.y, place.x));
+    } else {
+      searchKeywordList(keywords, index + 1, callback);
+    }
+  });
+}
+
+function drawGroup(groupRows, position) {
+  const sortedRows = [...groupRows].sort((a, b) => {
+    const pa = parseInt(clean(a["평형"])) || 0;
+    const pb = parseInt(clean(b["평형"])) || 0;
+    return pa - pb;
+  });
+
+  const total = sortedRows.length;
+
+  sortedRows.forEach((row, index) => {
     createOverlay(row, position, index, total);
   });
 }
@@ -367,70 +485,105 @@ function getOverlayOffset(index, total) {
 
   const level = map.getLevel();
 
-  let gap = 190;
+  let gapX = 195;
+  let gapY = 95;
 
-  if (level >= 8) gap = 95;
-  else if (level >= 6) gap = 145;
-  else gap = 190;
+  if (level >= 8) {
+    gapX = 110;
+    gapY = 60;
+  } else if (level >= 6) {
+    gapX = 145;
+    gapY = 80;
+  }
 
-  const positions = [
-    { x: 0, y: 0 },
-    { x: gap, y: 0 },
-    { x: -gap, y: 0 },
-    { x: 0, y: -gap },
-    { x: 0, y: gap },
+  let columns = total;
 
-    { x: gap, y: -gap },
-    { x: -gap, y: -gap },
-    { x: gap, y: gap },
-    { x: -gap, y: gap },
+  if (total >= 3 && total <= 7) {
+    columns = 2;
+  } else if (total >= 8) {
+    columns = 3;
+  }
 
-    { x: gap * 2, y: 0 },
-    { x: -gap * 2, y: 0 },
-    { x: 0, y: -gap * 2 },
-    { x: 0, y: gap * 2 },
+  const rowIndex = Math.floor(index / columns);
+  const colIndex = index % columns;
 
-    { x: gap * 2, y: -gap },
-    { x: -gap * 2, y: -gap },
-    { x: gap * 2, y: gap },
-    { x: -gap * 2, y: gap },
+  const lastRowIndex = Math.floor((total - 1) / columns);
 
-    { x: gap, y: -gap * 2 },
-    { x: -gap, y: -gap * 2 },
-    { x: gap, y: gap * 2 },
-    { x: -gap, y: gap * 2 },
+  const currentRowCount =
+    rowIndex === lastRowIndex
+      ? total - rowIndex * columns
+      : columns;
 
-    { x: gap * 3, y: 0 },
-    { x: -gap * 3, y: 0 },
-    { x: 0, y: -gap * 3 },
-    { x: 0, y: gap * 3 },
-    ];
+  const startX = -((currentRowCount - 1) * gapX) / 2;
 
-  return positions[index] || {
-    x: ((index % 5) - 2) * gap,
-    y: Math.floor(index / 5) * gap,
+  return {
+    x: startX + colIndex * gapX,
+    y: rowIndex * gapY,
   };
 }
 
+let collisionTimer = null;
+
+
 function makeOverlayContent(row, offsetX = 0, offsetY = 0) {
   const level = map.getLevel();
+  const visibleCount = getFilteredApartments().length;
+  const bgColor = getPriceColor(row["매매"]);
 
   let zoomClass = "detail";
 
-  if (level >= 8) zoomClass = "simple";
-  else if (level >= 6) zoomClass = "middle";
+  if (level >= 8) {
+    zoomClass = "tiny";
+  } else if (level >= 6) {
+    zoomClass = visibleCount >= 120 ? "tiny" : "simple";
+  } else if (level >= 5) {
+    zoomClass = visibleCount >= 150 ? "simple" : "middle";
+  }
 
-  const bgColor = getPriceColor(row["매매"]);
+  const name = clean(row["단지"]);
+  const pyeong = clean(row["평형"]);
+  const sale = formatPrice(row["매매"]);
+  const rent = formatPrice(row["전세"]);
+  const rentRate = clean(row["전세가율"]);
+
+  const baseAttrs = `data-base-x="${offsetX}" data-base-y="${offsetY}" style="background:${bgColor}; transform: translate(${offsetX}px, ${offsetY}px);"`;
+
+  if (zoomClass === "tiny") {
+    return `
+      <div class="apt-overlay tiny" ${baseAttrs}>
+        <div class="overlay-name">${pyeong}평 ${sale}</div>
+      </div>
+    `;
+  }
+
+  if (zoomClass === "simple") {
+    return `
+      <div class="apt-overlay simple" ${baseAttrs}>
+        <div class="overlay-name">${name}</div>
+        <div class="overlay-price">${pyeong}평 · ${sale}</div>
+      </div>
+    `;
+  }
+
+  if (zoomClass === "middle") {
+    return `
+      <div class="apt-overlay middle" ${baseAttrs}>
+        <div class="overlay-name">${name}</div>
+        <div class="overlay-price">${pyeong}평 · 매매 ${sale}</div>
+        <div class="overlay-price">전세 ${rent} (${rentRate})</div>
+      </div>
+    `;
+  }
 
   return `
-    <div class="apt-overlay ${zoomClass}" style="background:${bgColor}; transform: translate(${offsetX}px, ${offsetY}px);">
-      <div class="overlay-name">${clean(row["단지"])}</div>
-      <div class="overlay-detail detail-only">${clean(row["연식"])}년 · ${clean(row["전체세대수"])}세대</div>
-      <div class="overlay-detail detail-only">${clean(row["평형"])}평 · ${clean(row["계/복"])} 방${clean(row["방"])} 화${clean(row["화"])}</div>
+    <div class="apt-overlay detail" ${baseAttrs}>
+      <div class="overlay-name">${name}</div>
+      <div class="overlay-detail">${clean(row["연식"])}년 · ${clean(row["전체세대수"])}세대</div>
+      <div class="overlay-detail">${pyeong}평 · ${clean(row["계/복"])} 방${clean(row["방"])} 화${clean(row["화"])}</div>
       <div class="overlay-price">
-        매매 ${formatPrice(row["매매"])}(${clean(row["매매개수"])}) / 전세 ${formatPrice(row["전세"])}(${clean(row["전세개수"])}) (${clean(row["전세가율"])})
+        매매 ${sale}(${clean(row["매매개수"])}) / 전세 ${rent}(${clean(row["전세개수"])}) (${rentRate})
       </div>
-      <div class="overlay-detail middle-hide">
+      <div class="overlay-detail">
         전고 ${formatPrice(row["전고점"])} / 하락률 ${clean(row["현재하락률"])}
       </div>
     </div>
@@ -450,7 +603,12 @@ function getPriceColor(priceText) {
   if (price < 8) return "#ff8a65";
   if (price < 9) return "#f06292";
   if (price < 10) return "#ba68c8";
-  return "#9575cd";
+  if (price < 12) return "#9575cd";
+  if (price < 14) return "#7986cb";
+  if (price < 16) return "#64b5f6";
+  if (price < 18) return "#4dd0e1";
+  if (price < 20) return "#4db6ac";
+  return "#80cbc4";
 }
 
 function parsePriceToEok(priceText) {

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
   <meta charset="UTF-8" />
   <title>전국 아파트 시세 지도</title>
@@ -13,7 +14,7 @@
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-MKQKWLQ36G"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
+    function gtag() { dataLayer.push(arguments); }
     gtag('js', new Date());
 
     gtag('config', 'G-MKQKWLQ36G');
@@ -23,7 +24,8 @@
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
   <!-- 여기에 본인 카카오 JavaScript 키 입력 -->
-  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=e20cff92c58427130124c1da5daeecc3&libraries=services"></script>
+  <script
+    src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=e20cff92c58427130124c1da5daeecc3&libraries=services"></script>
 </head>
 
 <body>
@@ -40,11 +42,6 @@
       <option value="terrain">지적 지도</option>
     </select>
 
-    <label class="upload-btn">
-      📊 CSV 업로드
-      <input type="file" id="csvInput" accept=".csv" hidden />
-    </label>
-
     <button id="captureBtn">📷 화면 저장</button>
   </header>
 
@@ -54,11 +51,7 @@
         단지 목록 (<span id="aptCount">0</span>개)
       </div>
 
-      <input 
-        type="text" 
-        id="searchInput" 
-        placeholder="단지명 검색" 
-      />
+      <input type="text" id="searchInput" placeholder="단지명 검색" />
 
       <div class="select-buttons">
         <button id="selectAllBtn" class="reset-filter-btn">
@@ -142,4 +135,5 @@
 
   <script src="script.js"></script>
 </body>
+
 </html>
