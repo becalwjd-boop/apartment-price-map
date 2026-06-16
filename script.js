@@ -17,6 +17,8 @@ let apartmentData = [];
 let selectedRegion = "";
 let overlays = [];
 let coordCache = {};
+let autoDetailMode = true;
+let detailLevel = "normal";
 
 const savedCoords =
   JSON.parse(localStorage.getItem(COORD_CACHE_KEY) || "{}");
@@ -110,6 +112,35 @@ async function loadGoogleSheetCsv() {
 
 loadGoogleSheetCsv();
 
+document.getElementById("csvUploadInput").addEventListener("change", function (event) {
+  const file = event.target.files[0];
+
+  if (!file) return;
+
+  Papa.parse(file, {
+    header: false,
+    skipEmptyLines: true,
+    complete: function (results) {
+      console.log("직접 업로드 CSV 결과:", results.data);
+
+      clearOverlays();
+      apartmentData = [];
+      selectedRegion = "";
+      hasMovedToFirstApt = false;
+
+      processCsvRows(results.data);
+
+      alert("CSV 파일을 불러왔습니다. 새로고침하면 다시 구글시트 데이터로 돌아갑니다.");
+    },
+    error: function (error) {
+      console.error("CSV 업로드 실패:", error);
+      alert("CSV 파일을 불러오지 못했습니다.");
+    },
+  });
+
+  event.target.value = "";
+});
+
 function makeRegionSelect() {
   const regionSelect = document.getElementById("regionSelect");
   regionSelect.innerHTML = `<option value="">지역 선택</option>`;
@@ -162,6 +193,19 @@ document.getElementById("regionSelect").addEventListener("change", function () {
 
 document.getElementById("searchInput").addEventListener("input", function () {
   renderApartmentList();
+  drawSelectedRegion();
+});
+
+document.getElementById("detailLevel").addEventListener("change", function () {
+  detailLevel = this.value;
+  autoDetailMode = false;
+  document.getElementById("autoDetailBtn").textContent = "자동 OFF";
+  drawSelectedRegion();
+});
+
+document.getElementById("autoDetailBtn").addEventListener("click", function () {
+  autoDetailMode = true;
+  this.textContent = "자동 ON";
   drawSelectedRegion();
 });
 
@@ -527,20 +571,49 @@ function getOverlayOffset(index, total) {
 let collisionTimer = null;
 
 
-function makeOverlayContent(row, offsetX = 0, offsetY = 0) {
+function getCurrentDetailLevel() {
+  if (!autoDetailMode) {
+    return detailLevel;
+  }
+
   const level = map.getLevel();
   const visibleCount = getFilteredApartments().length;
-  const bgColor = getPriceColor(row["매매"]);
 
-  let zoomClass = "detail";
-
-  if (level >= 8) {
-    zoomClass = "tiny";
-  } else if (level >= 6) {
-    zoomClass = visibleCount >= 120 ? "tiny" : "simple";
-  } else if (level >= 5) {
-    zoomClass = visibleCount >= 150 ? "simple" : "middle";
+  // 멀리 볼 때는 무조건 요약
+  if (level >= 7) {
+    return "summary";
   }
+
+  // 단지가 많으면 더 오래 요약 유지
+  if (visibleCount >= 120) {
+    if (level >= 5) return "summary";
+    if (level >= 3) return "normal";
+    return "detail";
+  }
+
+  // 단지가 중간 정도 있으면 기본을 오래 유지
+  if (visibleCount >= 40) {
+    if (level >= 6) return "summary";
+    if (level >= 3) return "normal";
+    return "detail";
+  }
+
+  // 단지가 적어도 상세는 너무 빨리 나오지 않게 조정
+  if (visibleCount >= 15) {
+    if (level >= 6) return "summary";
+    if (level >= 4) return "normal";
+    return "detail";
+  }
+
+  // 단지가 아주 적을 때만 조금 빨리 상세
+  if (level >= 6) return "summary";
+  if (level >= 4) return "normal";
+  return "detail";
+}
+
+function makeOverlayContent(row, offsetX = 0, offsetY = 0) {
+  const currentDetail = getCurrentDetailLevel();
+  const bgColor = getPriceColor(row["매매"]);
 
   const name = clean(row["단지"]);
   const pyeong = clean(row["평형"]);
@@ -548,26 +621,22 @@ function makeOverlayContent(row, offsetX = 0, offsetY = 0) {
   const rent = formatPrice(row["전세"]);
   const rentRate = clean(row["전세가율"]);
 
-  const baseAttrs = `data-base-x="${offsetX}" data-base-y="${offsetY}" style="background:${bgColor}; transform: translate(${offsetX}px, ${offsetY}px);"`;
+  const baseAttrs = `
+    data-base-x="${offsetX}"
+    data-base-y="${offsetY}"
+    style="background:${bgColor}; transform: translate(${offsetX}px, ${offsetY}px);"
+  `;
 
-  if (zoomClass === "tiny") {
+  if (currentDetail === "summary") {
     return `
       <div class="apt-overlay tiny" ${baseAttrs}>
-        <div class="overlay-name">${pyeong}평 ${sale}</div>
-      </div>
-    `;
-  }
-
-  if (zoomClass === "simple") {
-    return `
-      <div class="apt-overlay simple" ${baseAttrs}>
         <div class="overlay-name">${name}</div>
         <div class="overlay-price">${pyeong}평 · ${sale}</div>
       </div>
     `;
   }
 
-  if (zoomClass === "middle") {
+  if (currentDetail === "normal") {
     return `
       <div class="apt-overlay middle" ${baseAttrs}>
         <div class="overlay-name">${name}</div>
@@ -637,13 +706,18 @@ function parsePriceToEok(priceText) {
 
 let zoomTimer = null;
 
-kakao.maps.event.addListener(map, "zoom_changed", function () {
+function redrawOverlayByMapChange() {
+  if (!autoDetailMode) return;
+
   clearTimeout(zoomTimer);
 
   zoomTimer = setTimeout(() => {
     drawSelectedRegion();
-  }, 250);
-});
+  }, 150);
+}
+
+kakao.maps.event.addListener(map, "zoom_changed", redrawOverlayByMapChange);
+kakao.maps.event.addListener(map, "idle", redrawOverlayByMapChange);
 
 const sidePanel = document.querySelector(".side-panel");
 const resizeHandle = document.getElementById("resizeHandle");

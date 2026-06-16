@@ -42,7 +42,14 @@
       <option value="terrain">지적 지도</option>
     </select>
 
+
     <button id="captureBtn">📷 화면 저장</button>
+
+    <label for="csvUploadInput" class="csv-upload-btn">
+      📂 CSV 직접 업로드
+    </label>
+
+    <input type="file" id="csvUploadInput" accept=".csv" style="display: none;" />
   </header>
 
   <main class="layout">
@@ -90,6 +97,24 @@
           <input type="checkbox" class="sizeCheck" value="50" checked />
           50평대+
         </label>
+      </div>
+
+      <div class="filter-section">
+
+        <div class="filter-title">
+          정보박스
+        </div>
+
+        <button id="autoDetailBtn" class="filter-btn">
+          자동 ON
+        </button>
+
+        <select id="detailLevel" class="filter-select">
+          <option value="summary">요약</option>
+          <option value="normal" selected>기본</option>
+          <option value="detail">상세</option>
+        </select>
+
       </div>
 
       <div class="price-filter">
