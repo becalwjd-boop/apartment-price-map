@@ -1,4 +1,7 @@
 const COORD_CACHE_KEY = "apt_coord_cache";
+const CSV_CACHE_KEY = "apt_csv_cache";
+const CSV_CACHE_TIME_KEY = "apt_csv_cache_time";
+
 const mapContainer = document.getElementById("map");
 
 const mapOption = {
@@ -17,8 +20,10 @@ let apartmentData = [];
 let selectedRegion = "";
 let overlays = [];
 let coordCache = {};
-let autoDetailMode = true;
-let detailLevel = "normal";
+const DETAIL_LEVEL_KEY = "apt_detail_level";
+
+let detailLevel =
+  localStorage.getItem(DETAIL_LEVEL_KEY) || "normal";
 
 const savedCoords =
   JSON.parse(localStorage.getItem(COORD_CACHE_KEY) || "{}");
@@ -88,32 +93,321 @@ function processCsvRows(rows) {
   makeRegionSelect();
 }
 
-async function loadGoogleSheetCsv() {
-  console.log("구글 시트 불러오기 시작");
+function showLoading(
+  message = "아파트 시세 데이터를 불러오는 중입니다."
+) {
+  const loadingOverlay =
+    document.getElementById("loadingOverlay");
 
+  const loadingText =
+    document.getElementById("loadingText");
+
+  if (!loadingOverlay || !loadingText) {
+    return;
+  }
+
+  loadingText.textContent = message;
+  loadingOverlay.classList.remove("hidden");
+}
+
+function hideLoading() {
+  const loadingOverlay =
+    document.getElementById("loadingOverlay");
+
+  if (!loadingOverlay) {
+    return;
+  }
+
+  loadingOverlay.classList.add("hidden");
+}
+
+
+function saveCsvCache(csvText) {
   try {
-    const csvUrl = GOOGLE_SHEET_CSV_URL + "&t=" + Date.now();
+    localStorage.setItem(
+      CSV_CACHE_KEY,
+      csvText
+    );
 
-    console.log("CSV 요청 주소:", csvUrl);
+    localStorage.setItem(
+      CSV_CACHE_TIME_KEY,
+      String(Date.now())
+    );
 
-    const response = await fetch(csvUrl, {
-      cache: "no-store",
-    });
+    console.log("CSV 브라우저 캐시 저장 완료");
+  } catch (error) {
+    console.warn(
+      "CSV 브라우저 캐시 저장 실패:",
+      error
+    );
+  }
+}
 
-    const csvText = await response.text();
+function getCachedCsv() {
+  try {
+    return localStorage.getItem(
+      CSV_CACHE_KEY
+    );
+  } catch (error) {
+    console.warn(
+      "CSV 브라우저 캐시 읽기 실패:",
+      error
+    );
 
-    console.log("구글 시트 원본:", csvText.slice(0, 500));
+    return null;
+  }
+}
 
+function removeCsvCache() {
+  try {
+    localStorage.removeItem(
+      CSV_CACHE_KEY
+    );
+
+    localStorage.removeItem(
+      CSV_CACHE_TIME_KEY
+    );
+  } catch (error) {
+    console.warn(
+      "CSV 브라우저 캐시 삭제 실패:",
+      error
+    );
+  }
+}
+
+function parseCsvText(csvText, sourceName = "CSV") {
+  return new Promise((resolve, reject) => {
     Papa.parse(csvText, {
       header: false,
       skipEmptyLines: true,
+
       complete: function (results) {
-        console.log("구글 시트 결과:", results.data);
+        console.log(
+          `${sourceName} 파싱 완료:`,
+          results.data.length
+        );
+
         processCsvRows(results.data);
+        resolve(results.data);
+      },
+
+      error: function (error) {
+        console.error(
+          `${sourceName} 파싱 실패:`,
+          error
+        );
+
+        reject(error);
       },
     });
+  });
+}
+
+async function fetchCsvWithTimeout(
+  url,
+  timeoutMs = 15000
+) {
+  const controller = new AbortController();
+
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      cache: "no-cache",
+      credentials: "omit",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `CSV 요청 실패: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return await response.text();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchLatestCsv() {
+  try {
+    return await fetchCsvWithTimeout(
+      GOOGLE_SHEET_CSV_URL,
+      15000
+    );
+  } catch (firstError) {
+    console.warn(
+      "첫 번째 CSV 요청 실패. 다시 시도합니다.",
+      firstError
+    );
+
+    const retryUrl =
+      GOOGLE_SHEET_CSV_URL +
+      "&t=" +
+      Date.now();
+
+    return await fetchCsvWithTimeout(
+      retryUrl,
+      15000
+    );
+  }
+}
+
+async function loadGoogleSheetCsv() {
+  console.log("구글 시트 불러오기 시작");
+
+  const cachedCsv = getCachedCsv();
+
+  /*
+   * 이전에 성공한 CSV가 있으면
+   * 먼저 즉시 화면에 표시한다.
+   */
+  if (cachedCsv) {
+    showLoading(
+      "저장된 아파트 시세 데이터를 불러오는 중입니다."
+    );
+
+    try {
+      await parseCsvText(
+        cachedCsv,
+        "저장된 CSV"
+      );
+
+      hideLoading();
+    } catch (cacheError) {
+      console.warn(
+        "저장된 CSV를 사용하지 못했습니다.",
+        cacheError
+      );
+
+      removeCsvCache();
+
+      /*
+       * 손상된 캐시를 지운 뒤
+       * 최신 데이터를 다시 불러온다.
+       */
+      await loadLatestCsvForFirstVisit();
+      return;
+    }
+
+    /*
+     * 화면은 이미 표시했으므로
+     * 최신 데이터는 뒤에서 확인한다.
+     */
+    fetchLatestCsv()
+      .then(async latestCsv => {
+        if (latestCsv === cachedCsv) {
+          console.log(
+            "저장된 CSV가 최신 상태입니다."
+          );
+
+          return;
+        }
+
+        console.log(
+          "새로운 구글시트 데이터를 발견했습니다."
+        );
+
+        saveCsvCache(latestCsv);
+
+        /*
+         * 사용자가 아직 지도 조작을 시작하지 않은 경우에만
+         * 화면 데이터를 최신 CSV로 다시 구성한다.
+         */
+        const currentSelectedRegion =
+          selectedRegion;
+
+        await parseCsvText(
+          latestCsv,
+          "최신 CSV"
+        );
+
+        /*
+         * makeRegionSelect()가 첫 지역으로 변경하므로
+         * 기존 선택 지역이 여전히 존재하면 복구한다.
+         */
+        if (currentSelectedRegion) {
+          const regionSelect =
+            document.getElementById("regionSelect");
+
+          const regionStillExists = [
+            ...regionSelect.options,
+          ].some(
+            option =>
+              option.value === currentSelectedRegion
+          );
+
+          if (regionStillExists) {
+            selectedRegion =
+              currentSelectedRegion;
+
+            regionSelect.value =
+              currentSelectedRegion;
+
+            hasMovedToFirstApt = false;
+
+            renderApartmentList();
+            drawSelectedRegion(true);
+          }
+        }
+      })
+      .catch(error => {
+        /*
+         * 최신 데이터 확인이 실패해도
+         * 저장된 데이터로 계속 사용한다.
+         */
+        console.warn(
+          "최신 CSV 백그라운드 갱신 실패:",
+          error
+        );
+      });
+
+    return;
+  }
+
+  /*
+   * 처음 방문하거나 캐시가 없을 때만
+   * 구글시트 응답을 기다린다.
+   */
+  await loadLatestCsvForFirstVisit();
+}
+
+async function loadLatestCsvForFirstVisit() {
+  showLoading(
+    "최신 아파트 시세 데이터를 처음 불러오는 중입니다."
+  );
+
+  try {
+    console.time("최초 CSV 다운로드");
+
+    const latestCsv =
+      await fetchLatestCsv();
+
+    console.timeEnd("최초 CSV 다운로드");
+
+    saveCsvCache(latestCsv);
+
+    await parseCsvText(
+      latestCsv,
+      "최초 CSV"
+    );
+
+    hideLoading();
   } catch (error) {
-    console.error("구글 시트 CSV 불러오기 실패:", error);
+    console.error(
+      "구글 시트 CSV 최종 불러오기 실패:",
+      error
+    );
+
+    hideLoading();
+
+    alert(
+      "아파트 시세 데이터를 불러오지 못했습니다.\n" +
+      "잠시 후 새로고침하거나 CSV 직접 업로드를 이용해 주세요."
+    );
   }
 }
 
@@ -150,24 +444,41 @@ document.getElementById("csvUploadInput").addEventListener("change", function (e
 
 function makeRegionSelect() {
   const regionSelect = document.getElementById("regionSelect");
-  regionSelect.innerHTML = `<option value="">지역 선택</option>`;
 
-  const regions = [...new Set(
-    apartmentData.map(row => makeRegionName(row)).filter(Boolean)
-  )].sort();
+  regionSelect.innerHTML = `
+    <option value="">전체 지역</option>
+  `;
+
+  const regions = [
+    ...new Set(
+      apartmentData
+        .map(row => makeRegionName(row))
+        .filter(Boolean)
+    ),
+  ].sort();
 
   regions.forEach(region => {
     const option = document.createElement("option");
+
     option.value = region;
     option.textContent = region;
+
     regionSelect.appendChild(option);
   });
 
+  /*
+   * 처음 접속했을 때 전국 단지를 모두 불러오면
+   * 속도가 느려질 수 있으므로 첫 번째 지역을 기본 표시한다.
+   *
+   * 사용자가 '전체 지역'을 직접 선택하면
+   * selectedRegion이 빈 문자열이 되어 전국 단지를 표시한다.
+   */
   if (regions.length > 0) {
     selectedRegion = regions[0];
     regionSelect.value = selectedRegion;
+
     renderApartmentList();
-    drawSelectedRegion();
+    drawSelectedRegion(true);
   }
 }
 
@@ -203,21 +514,45 @@ document.getElementById("searchInput").addEventListener("input", function () {
   drawSelectedRegion();
 });
 
-document.getElementById("detailLevel").addEventListener("change", function () {
-  detailLevel = this.value;
-  autoDetailMode = false;
-  document.getElementById("autoDetailBtn").textContent = "자동 OFF";
-  drawSelectedRegion();
-});
+function updateDetailModeButtons() {
+  document
+    .querySelectorAll(".detail-mode-btn")
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.level === detailLevel
+      );
+    });
+}
 
-document.getElementById("autoDetailBtn").addEventListener("click", function () {
-  autoDetailMode = true;
-  this.textContent = "자동 ON";
-  drawSelectedRegion();
-});
+document
+  .querySelectorAll(".detail-mode-btn")
+  .forEach(button => {
+    button.addEventListener("click", function () {
+      detailLevel = this.dataset.level;
+
+      localStorage.setItem(
+        DETAIL_LEVEL_KEY,
+        detailLevel
+      );
+
+      updateDetailModeButtons();
+      drawSelectedRegion();
+    });
+  });
+
+updateDetailModeButtons();
 
 document.getElementById("selectAllBtn").addEventListener("click", function () {
+  // 평형대 전체 선택
+  document.querySelectorAll(".sizeCheck").forEach(cb => {
+    cb.checked = true;
+  });
 
+  // 선택된 평형대 기준으로 단지 목록 다시 생성
+  renderApartmentList();
+
+  // 현재 표시된 단지 전체 선택
   document.querySelectorAll(".apt-check").forEach(cb => {
     cb.checked = true;
   });
@@ -226,11 +561,15 @@ document.getElementById("selectAllBtn").addEventListener("click", function () {
 });
 
 document.getElementById("unselectAllBtn").addEventListener("click", function () {
-
-  document.querySelectorAll(".apt-check").forEach(cb => {
+  // 평형대 전체 해제
+  document.querySelectorAll(".sizeCheck").forEach(cb => {
     cb.checked = false;
   });
 
+  // 평형대가 모두 해제된 상태로 단지 목록 갱신
+  renderApartmentList();
+
+  // 지도 정보박스 제거
   drawSelectedRegion();
 });
 
@@ -251,23 +590,46 @@ document.querySelectorAll(".sizeCheck").forEach(cb => {
 });
 
 function getFilteredApartments() {
-  const searchText = clean(document.getElementById("searchInput").value);
+  const searchText = clean(
+    document.getElementById("searchInput").value
+  );
 
-  const checkedSizes = [...document.querySelectorAll(".sizeCheck:checked")]
-    .map(el => Number(el.value));
+  const checkedSizes = [
+    ...document.querySelectorAll(".sizeCheck:checked"),
+  ].map(el => Number(el.value));
 
-  const minPrice = Number(document.getElementById("minPriceInput").value) || 1;
-  const maxPrice = Number(document.getElementById("maxPriceInput").value) || 200;
+  const minPriceInput =
+    document.getElementById("minPriceInput").value.trim();
+
+  const maxPriceInput =
+    document.getElementById("maxPriceInput").value.trim();
+
+  const parsedMinPrice = Number(minPriceInput);
+  const parsedMaxPrice = Number(maxPriceInput);
+
+  const minPrice =
+    minPriceInput !== "" && Number.isFinite(parsedMinPrice)
+      ? parsedMinPrice
+      : 0;
+
+  const maxPrice =
+    maxPriceInput !== "" && Number.isFinite(parsedMaxPrice)
+      ? parsedMaxPrice
+      : 200;
 
   return apartmentData.filter(row => {
     const region = makeRegionName(row);
     const aptName = clean(row["단지"]);
 
     const regionMatch =
-      selectedRegion ? region === selectedRegion : true;
+      selectedRegion
+        ? region === selectedRegion
+        : true;
 
     const searchMatch =
-      searchText ? aptName.includes(searchText) : true;
+      searchText
+        ? aptName.includes(searchText)
+        : true;
 
     const pyeong =
       parseInt(clean(row["평형"])) || 0;
@@ -282,10 +644,12 @@ function getFilteredApartments() {
     const sizeMatch =
       checkedSizes.includes(sizeGroup);
 
-    const priceEok = parsePriceToEok(row["매매"]);
+    const priceEok =
+      parsePriceToEok(row["매매"]);
 
     const priceMatch =
-      priceEok >= minPrice && priceEok < maxPrice + 1;
+      priceEok >= minPrice &&
+      priceEok <= maxPrice;
 
     return (
       regionMatch &&
@@ -385,7 +749,11 @@ function drawSelectedRegion(moveToFirst = false) {
       return;
     }
 
-    searchApartmentPosition(groupRows, currentVersion);
+    searchApartmentPosition(
+      groupRows,
+      currentVersion,
+      moveToFirst
+    );
   });
 
   setTimeout(() => {
@@ -414,13 +782,29 @@ function groupByApt(rows) {
   return groups;
 }
 
-function searchApartmentPosition(groupRows, version) {
+function searchApartmentPosition(
+  groupRows,
+  version,
+  moveToFirst = false
+) {
   const row = groupRows[0];
   const aptKey = makeAptKey(row);
 
   const lat = Number(clean(row["위도"]));
   const lng = Number(clean(row["경도"]));
 
+  /*
+   * 검색이 진행되는 동안 사용자가 다른 지역을 선택했다면
+   * 이전 검색 결과는 지도에 표시하지 않는다.
+   */
+  if (version !== drawVersion) {
+    return;
+  }
+
+  /*
+   * 스프레드시트에 위도·경도가 있으면
+   * 카카오 검색 없이 바로 사용한다.
+   */
   if (lat && lng) {
     const position = new kakao.maps.LatLng(lat, lng);
 
@@ -449,7 +833,10 @@ function searchApartmentPosition(groupRows, version) {
   const gu = clean(row["구"]);
   const dong = clean(row["동"]);
   const aptName = clean(row["단지"]);
-  const cleanAptName = aptName.replace(/\(.*?\)/g, "").trim();
+
+  const cleanAptName = aptName
+    .replace(/\(.*?\)/g, "")
+    .trim();
 
   const keywords = [
     `${city} ${gu} ${dong} ${aptName}`,
@@ -459,32 +846,51 @@ function searchApartmentPosition(groupRows, version) {
     cleanAptName,
   ];
 
-  searchKeywordList(keywords, 0, function (position) {
-    if (!position) {
-      const failedName = `${city} ${gu} ${dong} ${aptName}`;
-      failedAptList.push(failedName);
-      console.log("좌표 검색 실패:", failedName);
-      return;
+  searchKeywordList(
+    keywords,
+    0,
+    function (position) {
+      /*
+       * 검색 도중 다른 지역이 선택됐다면
+       * 오래된 검색 결과를 무시한다.
+       */
+      if (version !== drawVersion) {
+        return;
+      }
+
+      if (!position) {
+        const failedName =
+          `${city} ${gu} ${dong} ${aptName}`;
+
+        failedAptList.push(failedName);
+
+        console.log(
+          "좌표 검색 실패:",
+          failedName
+        );
+
+        return;
+      }
+
+      coordCache[aptKey] = {
+        lat: position.getLat(),
+        lng: position.getLng(),
+      };
+
+      localStorage.setItem(
+        COORD_CACHE_KEY,
+        JSON.stringify(coordCache)
+      );
+
+      drawGroup(groupRows, position);
+
+      if (moveToFirst && !hasMovedToFirstApt) {
+        map.setCenter(position);
+        map.setLevel(5);
+        hasMovedToFirstApt = true;
+      }
     }
-
-    coordCache[aptKey] = {
-      lat: position.getLat(),
-      lng: position.getLng(),
-    };
-
-    localStorage.setItem(
-      COORD_CACHE_KEY,
-      JSON.stringify(coordCache)
-    );
-
-    drawGroup(groupRows, position);
-
-    if (moveToFirst && !hasMovedToFirstApt) {
-      map.setCenter(position);
-      map.setLevel(5);
-      hasMovedToFirstApt = true;
-    }
-  });
+  );
 }
 
 function searchKeywordList(keywords, index, callback) {
@@ -579,43 +985,7 @@ let collisionTimer = null;
 
 
 function getCurrentDetailLevel() {
-  if (!autoDetailMode) {
-    return detailLevel;
-  }
-
-  const level = map.getLevel();
-  const visibleCount = getFilteredApartments().length;
-
-  // 멀리 볼 때는 무조건 요약
-  if (level >= 7) {
-    return "summary";
-  }
-
-  // 단지가 많으면 더 오래 요약 유지
-  if (visibleCount >= 120) {
-    if (level >= 5) return "summary";
-    if (level >= 3) return "normal";
-    return "detail";
-  }
-
-  // 단지가 중간 정도 있으면 기본을 오래 유지
-  if (visibleCount >= 40) {
-    if (level >= 6) return "summary";
-    if (level >= 3) return "normal";
-    return "detail";
-  }
-
-  // 단지가 적어도 상세는 너무 빨리 나오지 않게 조정
-  if (visibleCount >= 15) {
-    if (level >= 6) return "summary";
-    if (level >= 4) return "normal";
-    return "detail";
-  }
-
-  // 단지가 아주 적을 때만 조금 빨리 상세
-  if (level >= 6) return "summary";
-  if (level >= 4) return "normal";
-  return "detail";
+  return detailLevel;
 }
 
 function makeOverlayContent(row, offsetX = 0, offsetY = 0) {
@@ -714,8 +1084,6 @@ function parsePriceToEok(priceText) {
 let zoomTimer = null;
 
 function redrawOverlayByMapChange() {
-  if (!autoDetailMode) return;
-
   clearTimeout(zoomTimer);
 
   zoomTimer = setTimeout(() => {
@@ -800,3 +1168,54 @@ function formatPrice(value) {
 
   return `${eok.toFixed(1)}억`;
 }
+
+const OVERLAY_FONT_SCALE_KEY = "apt_overlay_font_scale";
+
+let overlayFontScale =
+  Number(localStorage.getItem(OVERLAY_FONT_SCALE_KEY)) || 1;
+
+function applyOverlayFontScale() {
+  document.documentElement.style.setProperty(
+    "--overlay-font-scale",
+    String(overlayFontScale)
+  );
+
+  document.getElementById("fontSizeValue").textContent =
+    `${Math.round(overlayFontScale * 100)}%`;
+
+  localStorage.setItem(
+    OVERLAY_FONT_SCALE_KEY,
+    String(overlayFontScale)
+  );
+}
+
+document
+  .getElementById("fontSizeDownBtn")
+  .addEventListener("click", function () {
+    overlayFontScale = Math.max(
+      0.8,
+      Number((overlayFontScale - 0.1).toFixed(1))
+    );
+
+    applyOverlayFontScale();
+  });
+
+document
+  .getElementById("fontSizeUpBtn")
+  .addEventListener("click", function () {
+    overlayFontScale = Math.min(
+      1.8,
+      Number((overlayFontScale + 0.1).toFixed(1))
+    );
+
+    applyOverlayFontScale();
+  });
+
+document
+  .getElementById("fontSizeResetBtn")
+  .addEventListener("click", function () {
+    overlayFontScale = 1;
+    applyOverlayFontScale();
+  });
+
+applyOverlayFontScale();

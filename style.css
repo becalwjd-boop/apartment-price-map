@@ -576,3 +576,252 @@ body {
 .csv-upload-btn:hover {
   background: #1b6b9c;
 }
+
+/* 글씨 크기 조절 */
+.font-size-control {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.font-size-buttons {
+  display: grid;
+  grid-template-columns: 1fr 64px 1fr;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.font-size-buttons button,
+#fontSizeResetBtn {
+  height: 34px;
+  border: 1px solid #2f6f9f;
+  border-radius: 6px;
+  background: #155a84;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#fontSizeValue {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  border: 1px solid #2f6f9f;
+  border-radius: 6px;
+  background: #0f355d;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#fontSizeResetBtn {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.font-size-buttons button:hover,
+#fontSizeResetBtn:hover {
+  background: #1b6b9c;
+}
+
+:root {
+  --font-scale: 1;
+}
+
+:root {
+  --overlay-font-scale: 1;
+}
+
+.apt-overlay {
+  font-size: calc(12px * var(--overlay-font-scale));
+}
+
+.apt-overlay .overlay-name {
+  font-size: calc(12px * var(--overlay-font-scale));
+}
+
+.apt-overlay .overlay-price,
+.apt-overlay .overlay-detail {
+  font-size: calc(11px * var(--overlay-font-scale));
+}
+
+/* =================================
+   지도 정보박스 글씨 크기 강제 적용
+================================= */
+
+:root {
+  --overlay-font-scale: 1;
+}
+
+.apt-overlay {
+  font-size: calc(12px * var(--overlay-font-scale)) !important;
+}
+
+.apt-overlay .overlay-name {
+  font-size: calc(12px * var(--overlay-font-scale)) !important;
+  line-height: 1.25 !important;
+}
+
+.apt-overlay .overlay-price {
+  font-size: calc(11px * var(--overlay-font-scale)) !important;
+  line-height: 1.3 !important;
+}
+
+.apt-overlay .overlay-detail {
+  font-size: calc(10px * var(--overlay-font-scale)) !important;
+  line-height: 1.3 !important;
+}
+
+/* 모든 내부 요소가 부모 글씨 크기를 따르도록 보정 */
+.apt-overlay * {
+  font-family: inherit;
+}
+
+/* =========================
+   데이터 로딩 화면
+========================= */
+
+.map-area {
+  position: relative;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.loading-overlay.hidden {
+  display: none;
+}
+
+.loading-box {
+  min-width: 250px;
+  padding: 22px 26px;
+
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+
+  background: #ffffff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 38px;
+  height: 38px;
+  margin: 0 auto 14px;
+
+  border: 4px solid #dbe8f3;
+  border-top-color: #155a84;
+  border-radius: 50%;
+
+  animation: loading-spin 0.8s linear infinite;
+}
+
+.loading-text {
+  color: #102f52;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.loading-subtext {
+  margin-top: 7px;
+
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================
+   정보박스 표시 방식 버튼
+========================= */
+
+.detail-mode-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.detail-mode-btn {
+  width: 100%;
+  height: 34px;
+  padding: 0 6px;
+
+  border: 1px solid #2f6f9f;
+  border-radius: 6px;
+
+  background: #123b64;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.detail-mode-btn:hover {
+  background: #1b5f8d;
+}
+
+.detail-mode-btn.active {
+  border-color: #67c7ff;
+  background: #1976a8;
+  box-shadow: inset 0 0 0 1px #67c7ff;
+}
+
+const OVERLAY_FONT_SCALE_KEY="apt_overlay_font_scale";
+
+let overlayFontScale=Number(localStorage.getItem(OVERLAY_FONT_SCALE_KEY)) || 1;
+
+function applyOverlayFontScale() {
+  document.documentElement.style.setProperty("--overlay-font-scale",
+    String(overlayFontScale));
+
+  document.getElementById("fontSizeValue").textContent=`$ {
+    Math.round(overlayFontScale * 100)
+  }
+
+  %`;
+
+  localStorage.setItem(OVERLAY_FONT_SCALE_KEY,
+    String(overlayFontScale));
+}
+
+document .getElementById("fontSizeDownBtn") .addEventListener("click", function () {
+    overlayFontScale=Math.max(0.8,
+      Number((overlayFontScale - 0.1).toFixed(1)));
+
+    applyOverlayFontScale();
+  });
+
+document .getElementById("fontSizeUpBtn") .addEventListener("click", function () {
+    overlayFontScale=Math.min(1.8,
+      Number((overlayFontScale + 0.1).toFixed(1)));
+
+    applyOverlayFontScale();
+  });
+
+document .getElementById("fontSizeResetBtn") .addEventListener("click", function () {
+    overlayFontScale=1;
+    applyOverlayFontScale();
+  });
+
+applyOverlayFontScale();

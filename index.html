@@ -100,21 +100,45 @@
       </div>
 
       <div class="filter-section">
+        <div class="filter-title">정보박스 표시</div>
 
-        <div class="filter-title">
-          정보박스
+        <div class="detail-mode-buttons">
+          <button type="button" class="detail-mode-btn" data-level="summary">
+            요약
+          </button>
+
+          <button type="button" class="detail-mode-btn active" data-level="normal">
+            기본
+          </button>
+
+          <button type="button" class="detail-mode-btn" data-level="detail">
+            상세
+          </button>
         </div>
 
-        <button id="autoDetailBtn" class="filter-btn">
-          자동 ON
-        </button>
+        <div class="overlay-font-control">
+          <div class="filter-title overlay-font-title">
+            정보박스 글씨
+          </div>
 
-        <select id="detailLevel" class="filter-select">
-          <option value="summary">요약</option>
-          <option value="normal" selected>기본</option>
-          <option value="detail">상세</option>
-        </select>
+          <div class="font-size-buttons">
+            <button type="button" id="fontSizeDownBtn">
+              작게
+            </button>
 
+            <span id="fontSizeValue">
+              100%
+            </span>
+
+            <button type="button" id="fontSizeUpBtn">
+              크게
+            </button>
+          </div>
+
+          <button type="button" id="fontSizeResetBtn">
+            기본 크기
+          </button>
+        </div>
       </div>
 
       <div class="price-filter">
@@ -126,13 +150,13 @@
           <div class="price-inputs">
             <label>
               최소
-              <input type="number" id="minPriceInput" value="1" min="1" max="50" />
+              <input type="number" id="minPriceInput" value="1" min="0" max="200" step="0.1" />
               억
             </label>
 
             <label>
               최대
-              <input type="number" id="maxPriceInput" value="200" min="1" max="200" />
+              <input type="number" id="maxPriceInput" value="200" min="0" max="200" step="0.1" />
               억
             </label>
           </div>
@@ -151,6 +175,19 @@
     <section class="map-area">
       <div id="map"></div>
 
+      <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-box">
+          <div class="loading-spinner"></div>
+
+          <div id="loadingText" class="loading-text">
+            아파트 시세 데이터를 불러오는 중입니다.
+          </div>
+
+          <div class="loading-subtext">
+            단지 수에 따라 잠시 시간이 걸릴 수 있습니다.
+          </div>
+        </div>
+      </div>
       <div class="legend">
         <button id="legendToggle">가격 색상표 보기</button>
         <div id="legendContent" class="legend-content hidden"></div>
