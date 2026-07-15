@@ -70,6 +70,24 @@
         </button>
       </div>
 
+      <div class="quick-select-buttons">
+        <button type="button" id="clearAptSelectionBtn" class="quick-select-btn">
+          선택 단지 초기화
+        </button>
+
+        <button type="button" id="addSearchResultsBtn" class="quick-select-btn">
+          선택 단지 추가
+        </button>
+      </div>
+
+      <div id="selectedAptCount" class="selected-apt-count">
+        선택 단지 0개
+      </div>
+
+      <div id="selectedAptList" class="selected-apt-list">
+        선택된 단지가 없습니다.
+      </div>
+
       <div class="size-filter">
         <div class="filter-title">평형대</div>
 
@@ -164,6 +182,16 @@
           <button id="applyPriceBtn" class="apply-price-btn">
             가격대 적용
           </button>
+
+          <div class="region-selection-buttons">
+            <button type="button" id="selectCurrentRegionBtn" class="region-selection-btn">
+              현재 지역 전체 선택
+            </button>
+
+            <button type="button" id="unselectCurrentRegionBtn" class="region-selection-btn">
+              현재 지역 전체 해제
+            </button>
+          </div>
         </div>
       </div>
 

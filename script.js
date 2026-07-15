@@ -20,6 +20,10 @@ let apartmentData = [];
 let selectedRegion = "";
 let overlays = [];
 let coordCache = {};
+
+const selectedRowKeys = new Set();
+let customSelectionMode = false;
+
 const DETAIL_LEVEL_KEY = "apt_detail_level";
 
 let detailLevel =
@@ -492,6 +496,137 @@ function makeRegionName(row) {
   return "";
 }
 
+function moveMapToCurrentRegion() {
+  if (!selectedRegion) {
+    return;
+  }
+
+  /*
+   * 검색창은 무시하고 현재 선택 지역에 속한
+   * 첫 번째 단지를 지도 이동 기준으로 사용한다.
+   */
+  const targetRow = apartmentData.find(row =>
+    makeRegionName(row) === selectedRegion
+  );
+
+  if (!targetRow) {
+    console.warn(
+      "지도 이동 기준 단지를 찾지 못했습니다:",
+      selectedRegion
+    );
+
+    return;
+  }
+
+  const aptKey =
+    makeAptKey(targetRow);
+
+  /*
+   * 저장된 좌표가 있으면 바로 이동한다.
+   */
+  if (coordCache[aptKey]) {
+    const saved =
+      coordCache[aptKey];
+
+    const position =
+      new kakao.maps.LatLng(
+        Number(saved.lat),
+        Number(saved.lng)
+      );
+
+    map.setCenter(position);
+    map.setLevel(5);
+
+    return;
+  }
+
+  /*
+   * 스프레드시트에 위도와 경도가 있으면 바로 사용한다.
+   */
+  const lat =
+    Number(clean(targetRow["위도"]));
+
+  const lng =
+    Number(clean(targetRow["경도"]));
+
+  if (lat && lng) {
+    const position =
+      new kakao.maps.LatLng(lat, lng);
+
+    coordCache[aptKey] = {
+      lat,
+      lng,
+    };
+
+    localStorage.setItem(
+      COORD_CACHE_KEY,
+      JSON.stringify(coordCache)
+    );
+
+    map.setCenter(position);
+    map.setLevel(5);
+
+    return;
+  }
+
+  /*
+   * 좌표가 없으면 기존 카카오 검색 후보를 사용해
+   * 지도 이동 위치만 찾는다.
+   */
+  const city =
+    clean(targetRow["시"]);
+
+  const gu =
+    clean(targetRow["구"]);
+
+  const dong =
+    clean(targetRow["동"]);
+
+  const aptName =
+    clean(targetRow["단지"]);
+
+  const cleanAptName =
+    aptName
+      .replace(/\(.*?\)/g, "")
+      .trim();
+
+  const keywords = [
+    `${city} ${gu} ${dong} ${aptName}`,
+    `${city} ${gu} ${dong} ${cleanAptName}`,
+    `${gu} ${dong} ${cleanAptName}`,
+    `${dong} ${cleanAptName}`,
+    cleanAptName,
+  ];
+
+  searchKeywordList(
+    keywords,
+    0,
+    function (position) {
+      if (!position) {
+        console.warn(
+          "지역 이동 좌표 검색 실패:",
+          selectedRegion
+        );
+
+        return;
+      }
+
+      coordCache[aptKey] = {
+        lat: position.getLat(),
+        lng: position.getLng(),
+      };
+
+      localStorage.setItem(
+        COORD_CACHE_KEY,
+        JSON.stringify(coordCache)
+      );
+
+      map.setCenter(position);
+      map.setLevel(5);
+    }
+  );
+}
+
 // 좌표 검색용: 같은 단지면 같은 좌표 사용
 function makeAptKey(row) {
   return `${clean(row["시"])}|${clean(row["구"])}|${clean(row["동"])}|${clean(row["단지"])}`;
@@ -502,17 +637,27 @@ function makeRowKey(row) {
   return `${clean(row["시"])}|${clean(row["구"])}|${clean(row["동"])}|${clean(row["단지"])}|${clean(row["평형"])}|${clean(row["매매"])}|${clean(row["전세"])}|${clean(row["전고점"])}`;
 }
 
-document.getElementById("regionSelect").addEventListener("change", function () {
-  selectedRegion = this.value;
-  hasMovedToFirstApt = false;
-  renderApartmentList();
-  drawSelectedRegion(true);
-});
+document
+  .getElementById("regionSelect")
+  .addEventListener("change", function () {
+    selectedRegion = this.value;
+    hasMovedToFirstApt = false;
 
-document.getElementById("searchInput").addEventListener("input", function () {
-  renderApartmentList();
-  drawSelectedRegion();
-});
+    /*
+     * 좌측 목록은 새로 선택한 지역 기준으로 갱신한다.
+     */
+    renderApartmentList();
+
+    /*
+     * 기존에 누적 선택한 다른 지역 단지는 그대로 지도에 유지한다.
+     */
+    drawSelectedRegion(false);
+
+    /*
+     * 지도 중심만 방금 선택한 지역으로 이동한다.
+     */
+    moveMapToCurrentRegion();
+  });
 
 function updateDetailModeButtons() {
   document
@@ -544,6 +689,9 @@ document
 updateDetailModeButtons();
 
 document.getElementById("selectAllBtn").addEventListener("click", function () {
+  customSelectionMode = false;
+  selectedRowKeys.clear();
+
   // 평형대 전체 선택
   document.querySelectorAll(".sizeCheck").forEach(cb => {
     cb.checked = true;
@@ -560,27 +708,153 @@ document.getElementById("selectAllBtn").addEventListener("click", function () {
   drawSelectedRegion();
 });
 
-document.getElementById("unselectAllBtn").addEventListener("click", function () {
-  // 평형대 전체 해제
-  document.querySelectorAll(".sizeCheck").forEach(cb => {
-    cb.checked = false;
+document
+  .getElementById("unselectAllBtn")
+  .addEventListener("click", function () {
+    /*
+     * 기존 전체 해제 기능:
+     * 평형대까지 모두 해제한다.
+     */
+    customSelectionMode = true;
+    selectedRowKeys.clear();
+
+    document
+      .querySelectorAll(".sizeCheck")
+      .forEach(checkbox => {
+        checkbox.checked = false;
+      });
+
+    renderApartmentList();
+    drawSelectedRegion();
   });
 
-  // 평형대가 모두 해제된 상태로 단지 목록 갱신
-  renderApartmentList();
+document
+  .getElementById("clearAptSelectionBtn")
+  .addEventListener("click", function () {
+    /*
+     * 평형대와 가격 조건은 그대로 두고
+     * 개별 단지 선택만 모두 해제한다.
+     */
+    customSelectionMode = true;
+    selectedRowKeys.clear();
 
-  // 지도 정보박스 제거
-  drawSelectedRegion();
-});
+    renderApartmentList();
+    drawSelectedRegion();
+  });
 
-document.getElementById("priceToggle").addEventListener("click", function () {
-  document.getElementById("priceContent").classList.toggle("hidden");
-});
+document
+  .getElementById("addSearchResultsBtn")
+  .addEventListener("click", function () {
+    /*
+     * 현재 화면에서 체크된 단지를 우선 추가한다.
+     * 검색창에 글자가 없어도 체크된 단지가 있으면 동작한다.
+     */
+    const checkedRowKeys =
+      getCheckedRowKeys();
+
+    let rowsToAdd =
+      apartmentData.filter(row =>
+        checkedRowKeys.includes(
+          makeRowKey(row)
+        )
+      );
+
+    /*
+     * 체크된 항목은 없지만 검색어가 있다면
+     * 현재 검색 결과 전체를 추가한다.
+     */
+    if (rowsToAdd.length === 0) {
+      const searchText = clean(
+        document.getElementById("searchInput").value
+      );
+
+      if (searchText) {
+        rowsToAdd =
+          getFilteredApartments();
+      }
+    }
+
+    if (rowsToAdd.length === 0) {
+      alert(
+        "추가할 단지를 체크하거나 단지명을 검색해 주세요."
+      );
+
+      return;
+    }
+
+    customSelectionMode = true;
+
+    rowsToAdd.forEach(row => {
+      selectedRowKeys.add(
+        makeRowKey(row)
+      );
+    });
+
+    renderApartmentList();
+    drawSelectedRegion();
+
+    const addedApartmentCount =
+      new Set(
+        rowsToAdd.map(row =>
+          makeAptKey(row)
+        )
+      ).size;
+
+    console.log(
+      `${addedApartmentCount}개 단지를 선택 목록에 추가했습니다.`
+    );
+  });
 
 document.getElementById("applyPriceBtn").addEventListener("click", function () {
   renderApartmentList();
   drawSelectedRegion();
 });
+
+document
+  .getElementById("selectCurrentRegionBtn")
+  .addEventListener("click", function () {
+    const regionRows =
+      getCurrentRegionApartmentsWithoutSearch();
+
+    if (regionRows.length === 0) {
+      alert(
+        "현재 지역과 가격·평형 조건에 맞는 단지가 없습니다."
+      );
+
+      return;
+    }
+
+    customSelectionMode = true;
+
+    regionRows.forEach(row => {
+      selectedRowKeys.add(
+        makeRowKey(row)
+      );
+    });
+
+    renderApartmentList();
+    drawSelectedRegion();
+    updateSelectedApartmentCount();
+  });
+
+document
+  .getElementById("unselectCurrentRegionBtn")
+  .addEventListener("click", function () {
+    const regionRows =
+      getCurrentRegionApartmentsWithoutSearch();
+
+    customSelectionMode = true;
+
+    regionRows.forEach(row => {
+      selectedRowKeys.delete(
+        makeRowKey(row)
+      );
+    });
+
+    renderApartmentList();
+    drawSelectedRegion();
+    updateSelectedApartmentCount();
+  });
 
 document.querySelectorAll(".sizeCheck").forEach(cb => {
   cb.addEventListener("change", () => {
@@ -660,24 +934,200 @@ function getFilteredApartments() {
   });
 }
 
+function getCurrentRegionApartmentsWithoutSearch() {
+  const checkedSizes = [
+    ...document.querySelectorAll(".sizeCheck:checked"),
+  ].map(element => Number(element.value));
+
+  const minPriceInput =
+    document.getElementById("minPriceInput").value.trim();
+
+  const maxPriceInput =
+    document.getElementById("maxPriceInput").value.trim();
+
+  const parsedMinPrice =
+    Number(minPriceInput);
+
+  const parsedMaxPrice =
+    Number(maxPriceInput);
+
+  const minPrice =
+    minPriceInput !== "" &&
+      Number.isFinite(parsedMinPrice)
+      ? parsedMinPrice
+      : 0;
+
+  const maxPrice =
+    maxPriceInput !== "" &&
+      Number.isFinite(parsedMaxPrice)
+      ? parsedMaxPrice
+      : 200;
+
+  return apartmentData.filter(row => {
+    const region =
+      makeRegionName(row);
+
+    const regionMatch =
+      selectedRegion
+        ? region === selectedRegion
+        : true;
+
+    const pyeong =
+      parseInt(clean(row["평형"])) || 0;
+
+    let sizeGroup =
+      Math.floor(pyeong / 10) * 10;
+
+    if (sizeGroup >= 50) {
+      sizeGroup = 50;
+    }
+
+    const sizeMatch =
+      checkedSizes.includes(sizeGroup);
+
+    const priceEok =
+      parsePriceToEok(row["매매"]);
+
+    const priceMatch =
+      priceEok >= minPrice &&
+      priceEok <= maxPrice;
+
+    return (
+      regionMatch &&
+      sizeMatch &&
+      priceMatch
+    );
+  });
+}
+
+function updateSelectedApartmentCount() {
+  const selectedCountElement =
+    document.getElementById("selectedAptCount");
+
+  const selectedListElement =
+    document.getElementById("selectedAptList");
+
+  if (!selectedCountElement) {
+    return;
+  }
+
+  let selectedRows;
+
+  if (customSelectionMode) {
+    selectedRows =
+      apartmentData.filter(row =>
+        selectedRowKeys.has(
+          makeRowKey(row)
+        )
+      );
+  } else {
+    selectedRows =
+      getFilteredApartments();
+  }
+
+  /*
+   * 같은 단지에 여러 평형이 있어도
+   * 단지 이름은 한 번만 표시한다.
+   */
+  const uniqueApartmentMap =
+    new Map();
+
+  selectedRows.forEach(row => {
+    const aptKey =
+      makeAptKey(row);
+
+    if (!uniqueApartmentMap.has(aptKey)) {
+      uniqueApartmentMap.set(
+        aptKey,
+        row
+      );
+    }
+  });
+
+  const uniqueApartments =
+    [...uniqueApartmentMap.values()];
+
+  selectedCountElement.textContent =
+    `선택 단지 ${uniqueApartments.length}개`;
+
+  if (!selectedListElement) {
+    return;
+  }
+
+  selectedListElement.innerHTML = "";
+
+  if (uniqueApartments.length === 0) {
+    selectedListElement.textContent =
+      "선택된 단지가 없습니다.";
+
+    return;
+  }
+
+  uniqueApartments.forEach((row, index) => {
+    const item =
+      document.createElement("div");
+
+    item.className =
+      "selected-apt-list-item";
+
+    const name =
+      document.createElement("span");
+
+    name.textContent =
+      `${index + 1}. ${clean(row["단지"])}`;
+
+    const region =
+      document.createElement("small");
+
+    region.textContent =
+      makeRegionName(row);
+
+    item.appendChild(name);
+    item.appendChild(region);
+
+    selectedListElement.appendChild(item);
+  });
+}
+
 function renderApartmentList() {
-  const aptList = document.getElementById("aptList");
-  const aptCount = document.getElementById("aptCount");
+  const aptList =
+    document.getElementById("aptList");
+
+  const aptCount =
+    document.getElementById("aptCount");
 
   aptList.innerHTML = "";
 
-  const filtered = getFilteredApartments();
-  aptCount.textContent = filtered.length;
+  const filtered =
+    getFilteredApartments();
+
+  aptCount.textContent =
+    filtered.length;
 
   filtered.forEach(row => {
-    const rowKey = makeRowKey(row);
+    const rowKey =
+      makeRowKey(row);
 
-    const item = document.createElement("div");
-    item.className = "apt-item";
+    const item =
+      document.createElement("div");
+
+    item.className =
+      "apt-item";
+
+    const isChecked =
+      customSelectionMode
+        ? selectedRowKeys.has(rowKey)
+        : true;
 
     item.innerHTML = `
       <label>
-        <input type="checkbox" class="apt-check" checked data-key="${rowKey}" />
+        <input
+          type="checkbox"
+          class="apt-check"
+          ${isChecked ? "checked" : ""}
+          data-key="${rowKey}"
+        />
+
         <div class="apt-card">
           <div class="apt-name">${clean(row["단지"])}</div>
           <div class="apt-dong">${clean(row["동"])}</div>
@@ -693,9 +1143,44 @@ function renderApartmentList() {
     aptList.appendChild(item);
   });
 
-  document.querySelectorAll(".apt-check").forEach(checkbox => {
-    checkbox.addEventListener("change", drawSelectedRegion);
-  });
+  document
+    .querySelectorAll(".apt-check")
+    .forEach(checkbox => {
+      checkbox.addEventListener(
+        "change",
+        function () {
+          if (!customSelectionMode) {
+            /*
+             * 일반 전체 선택 상태를
+             * 사용자 지정 선택 상태로 전환한다.
+             */
+            customSelectionMode = true;
+            selectedRowKeys.clear();
+
+            document
+              .querySelectorAll(".apt-check:checked")
+              .forEach(checkedBox => {
+                selectedRowKeys.add(
+                  checkedBox.dataset.key
+                );
+              });
+          } else if (this.checked) {
+            selectedRowKeys.add(
+              this.dataset.key
+            );
+          } else {
+            selectedRowKeys.delete(
+              this.dataset.key
+            );
+          }
+
+          updateSelectedApartmentCount();
+          drawSelectedRegion();
+        }
+      );
+    });
+
+  updateSelectedApartmentCount();
 }
 
 function getCheckedRowKeys() {
@@ -710,39 +1195,73 @@ function clearOverlays() {
 
 function drawSelectedRegion(moveToFirst = false) {
   drawVersion++;
-  const currentVersion = drawVersion;
+
+  const currentVersion =
+    drawVersion;
 
   failedAptList = [];
+
   if (moveToFirst) {
     hasMovedToFirstApt = false;
   }
 
   clearOverlays();
 
-  const checkedKeys = getCheckedRowKeys();
+  let rows;
 
-  const rows = getFilteredApartments().filter(row =>
-    checkedKeys.includes(makeRowKey(row))
-  );
+  if (customSelectionMode) {
+    /*
+     * 빠른 선택 모드에서는 현재 검색창에 보이는 목록이 아니라
+     * Set에 누적 저장된 행을 지도에 표시한다.
+     */
+    rows = apartmentData.filter(row =>
+      selectedRowKeys.has(
+        makeRowKey(row)
+      )
+    );
+  } else {
+    /*
+     * 일반 모드에서는 현재 화면의 체크박스 상태를 사용한다.
+     */
+    const checkedKeys =
+      getCheckedRowKeys();
 
-  const groups = groupByApt(rows);
+    rows = getFilteredApartments().filter(row =>
+      checkedKeys.includes(
+        makeRowKey(row)
+      )
+    );
+  }
+
+  const groups =
+    groupByApt(rows);
 
   Object.keys(groups).forEach(aptKey => {
-    const groupRows = groups[aptKey];
+    const groupRows =
+      groups[aptKey];
 
     if (coordCache[aptKey]) {
-      const saved = coordCache[aptKey];
+      const saved =
+        coordCache[aptKey];
 
-      const position = new kakao.maps.LatLng(
-        Number(saved.lat),
-        Number(saved.lng)
+      const position =
+        new kakao.maps.LatLng(
+          Number(saved.lat),
+          Number(saved.lng)
+        );
+
+      drawGroup(
+        groupRows,
+        position
       );
 
-      drawGroup(groupRows, position);
-
-      if (moveToFirst && !hasMovedToFirstApt) {
+      if (
+        moveToFirst &&
+        !hasMovedToFirstApt
+      ) {
         map.setCenter(position);
         map.setLevel(5);
+
         hasMovedToFirstApt = true;
       }
 

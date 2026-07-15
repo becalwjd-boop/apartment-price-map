@@ -825,3 +825,147 @@ document .getElementById("fontSizeResetBtn") .addEventListener("click", function
   });
 
 applyOverlayFontScale();
+
+/* =========================
+   원하는 단지 빠른 선택
+========================= */
+
+.quick-select-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 100%;
+  margin-top: 7px;
+}
+
+.quick-select-btn {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 4px;
+
+  border: 1px solid #2f6f9f;
+  border-radius: 6px;
+
+  background: #123b64;
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+
+  cursor: pointer;
+}
+
+.quick-select-btn:hover {
+  background: #1b5f8d;
+}
+
+.selected-apt-count {
+  margin-top: 7px;
+  padding: 6px 8px;
+
+  border: 1px solid rgba(103, 199, 255, 0.35);
+  border-radius: 6px;
+
+  background: #0f355d;
+  color: #d9efff;
+
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 빠른 단지 선택 버튼 간격 개선 */
+.quick-select-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.quick-select-btn {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  box-sizing: border-box;
+}
+
+.selected-apt-count {
+  margin-top: 7px;
+}
+
+/* 선택된 단지 이름 목록 */
+.selected-apt-list {
+  max-height: 150px;
+  margin-top: 7px;
+  padding: 7px 8px;
+
+  overflow-y: auto;
+
+  border: 1px solid rgba(103, 199, 255, 0.3);
+  border-radius: 6px;
+
+  background: #0b2e52;
+  color: #ffffff;
+
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.selected-apt-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+
+  padding: 5px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.selected-apt-list-item:last-child {
+  border-bottom: 0;
+}
+
+.selected-apt-list-item span {
+  font-weight: 700;
+}
+
+.selected-apt-list-item small {
+  color: #9fc8e8;
+  font-size: 10px;
+}
+
+/* =========================
+   현재 지역 전체 선택·해제
+========================= */
+
+.region-selection-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.region-selection-btn {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 5px;
+  box-sizing: border-box;
+
+  border: 1px solid #2f6f9f;
+  border-radius: 6px;
+
+  background: #123b64;
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+
+  cursor: pointer;
+}
+
+.region-selection-btn:hover {
+  background: #1b5f8d;
+}
