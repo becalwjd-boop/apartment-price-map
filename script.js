@@ -659,6 +659,32 @@ document
     moveMapToCurrentRegion();
   });
 
+const searchInput =
+  document.getElementById("searchInput");
+
+searchInput.addEventListener("input", function () {
+  /*
+   * 검색어를 입력할 때마다
+   * 왼쪽 단지 목록만 검색 결과로 갱신한다.
+   *
+   * 지도까지 매 글자마다 다시 그리면
+   * 느려질 수 있으므로 여기서는 목록만 갱신한다.
+   */
+  renderApartmentList();
+});
+
+const globalSearchCheck =
+  document.getElementById("globalSearchCheck");
+
+if (globalSearchCheck) {
+  globalSearchCheck.addEventListener(
+    "change",
+    function () {
+      renderApartmentList();
+    }
+  );
+}
+
 function updateDetailModeButtons() {
   document
     .querySelectorAll(".detail-mode-btn")
@@ -895,10 +921,15 @@ function getFilteredApartments() {
     const region = makeRegionName(row);
     const aptName = clean(row["단지"]);
 
+    const globalSearchEnabled =
+      document.getElementById("globalSearchCheck")?.checked;
+
     const regionMatch =
-      selectedRegion
-        ? region === selectedRegion
-        : true;
+      searchText && globalSearchEnabled
+        ? true
+        : selectedRegion
+          ? region === selectedRegion
+          : true;
 
     const searchMatch =
       searchText
