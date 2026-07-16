@@ -417,6 +417,87 @@ async function loadLatestCsvForFirstVisit() {
 
 loadGoogleSheetCsv();
 
+const refreshDataBtn =
+  document.getElementById("refreshDataBtn");
+
+refreshDataBtn.addEventListener(
+  "click",
+  async function () {
+    const previousText =
+      refreshDataBtn.textContent;
+
+    refreshDataBtn.disabled = true;
+    refreshDataBtn.textContent =
+      "🔄 불러오는 중";
+
+    showLoading(
+      "구글시트에서 최신 아파트 시세를 불러오는 중입니다."
+    );
+
+    try {
+      /*
+       * 현재 시간값을 주소에 붙여
+       * 브라우저와 중간 캐시를 우회한다.
+       */
+      const refreshUrl =
+        GOOGLE_SHEET_CSV_URL +
+        "&t=" +
+        Date.now();
+
+      const latestCsv =
+        await fetchCsvWithTimeout(
+          refreshUrl,
+          30000
+        );
+
+      /*
+       * 최신 CSV를 브라우저 캐시에 저장한다.
+       */
+      saveCsvCache(latestCsv);
+
+      /*
+       * 최신 데이터로 화면 전체를 다시 구성한다.
+       */
+      await parseCsvText(
+        latestCsv,
+        "수동 최신화 CSV"
+      );
+
+      hideLoading();
+
+      refreshDataBtn.textContent =
+        "✅ 최신화 완료";
+
+      setTimeout(() => {
+        refreshDataBtn.textContent =
+          previousText;
+      }, 1500);
+    } catch (error) {
+      console.error(
+        "최신 시세 수동 갱신 실패:",
+        error
+      );
+
+      hideLoading();
+
+      refreshDataBtn.textContent =
+        "⚠️ 다시 시도";
+
+      alert(
+        "최신 시세를 불러오지 못했습니다.\n" +
+        "인터넷 연결을 확인한 뒤 다시 시도해 주세요."
+      );
+
+      setTimeout(() => {
+        refreshDataBtn.textContent =
+          previousText;
+      }, 2000);
+    } finally {
+      refreshDataBtn.disabled = false;
+    }
+  }
+);
+
 document.getElementById("csvUploadInput").addEventListener("change", function (event) {
   const file = event.target.files[0];
 

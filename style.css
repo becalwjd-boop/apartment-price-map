@@ -1096,3 +1096,39 @@ applyOverlayFontScale();
 .global-search-option input {
   margin: 0;
 }
+
+/* 최신 시세 강제 새로고침 버튼 */
+.refresh-data-btn {
+  min-height: 38px;
+  padding: 0 14px;
+
+  border: 1px solid #2f6f9f;
+  border-radius: 6px;
+
+  background: #155a84;
+  color: #ffffff;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.refresh-data-btn:hover {
+  background: #1b6b99;
+}
+
+.refresh-data-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+@media (max-width: 768px) {
+  .refresh-data-btn {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}
