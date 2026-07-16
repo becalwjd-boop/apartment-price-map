@@ -969,3 +969,113 @@ applyOverlayFontScale();
 .region-selection-btn:hover {
   background: #1b5f8d;
 }
+
+/* =========================
+   사이드바 전체 세로 스크롤
+========================= */
+
+.side-panel {
+  height: calc(100dvh - 50px);
+  max-height: calc(100dvh - 50px);
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+
+/* 사이드바 오른쪽 스크롤바 공간 확보 */
+.side-panel>* {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* 스크롤바가 콘텐츠를 너무 가리지 않도록 조정 */
+.side-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.side-panel::-webkit-scrollbar-track {
+  background: #0d2f55;
+}
+
+.side-panel::-webkit-scrollbar-thumb {
+  background: #39759f;
+  border-radius: 8px;
+}
+
+.side-panel::-webkit-scrollbar-thumb:hover {
+  background: #4b8ab6;
+}
+
+.apt-list {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+/* =========================
+   선택된 단지 목록 높이 보정
+========================= */
+
+.quick-select-buttons,
+.selected-apt-count,
+.selected-apt-list {
+  flex-shrink: 0;
+}
+
+.selected-apt-list {
+  display: block;
+
+  width: 100%;
+  min-height: 90px;
+  max-height: 180px;
+
+  margin-top: 7px;
+  padding: 8px 10px;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(103, 199, 255, 0.35);
+  border-radius: 6px;
+
+  background: #0b2e52;
+  color: #ffffff;
+
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.selected-apt-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  min-height: 36px;
+  padding: 6px 2px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  box-sizing: border-box;
+}
+
+.selected-apt-list-item:last-child {
+  border-bottom: none;
+}
+
+.selected-apt-list-item span {
+  display: block;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  word-break: keep-all;
+}
+
+.selected-apt-list-item small {
+  display: block;
+  color: #9fc8e8;
+  font-size: 10px;
+}
