@@ -673,6 +673,43 @@ searchInput.addEventListener("input", function () {
   renderApartmentList();
 });
 
+/*
+ * 모바일에서 지도를 터치하거나 드래그하면
+ * 검색창의 포커스를 해제해 키보드를 닫는다.
+ */
+function blurSearchInputOnMapInteraction() {
+  if (
+    document.activeElement === searchInput
+  ) {
+    searchInput.blur();
+  }
+}
+
+mapContainer.addEventListener(
+  "pointerdown",
+  blurSearchInputOnMapInteraction
+);
+
+mapContainer.addEventListener(
+  "touchstart",
+  blurSearchInputOnMapInteraction,
+  {
+    passive: true,
+  }
+);
+
+searchInput.addEventListener(
+  "keydown",
+  function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+
+      renderApartmentList();
+      searchInput.blur();
+    }
+  }
+);
+
 const globalSearchCheck =
   document.getElementById("globalSearchCheck");
 
