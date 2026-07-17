@@ -94,7 +94,15 @@ function processCsvRows(rows) {
     });
 
   hasMovedToFirstApt = false;
+
   makeRegionSelect();
+
+  /*
+   * 새 CSV의 지역 순서와 데이터를 기준으로
+   * 좌측 목록과 지도를 다시 구성한다.
+   */
+  renderApartmentList();
+  drawSelectedRegion(true);
 }
 
 function showLoading(
@@ -528,22 +536,53 @@ document.getElementById("csvUploadInput").addEventListener("change", function (e
 });
 
 function makeRegionSelect() {
-  const regionSelect = document.getElementById("regionSelect");
+  const regionSelect =
+    document.getElementById("regionSelect");
 
-  regionSelect.innerHTML = `
-    <option value="">전체 지역</option>
-  `;
+  const previousSelectedRegion =
+    regionSelect.value;
 
-  const regions = [
-    ...new Set(
-      apartmentData
-        .map(row => makeRegionName(row))
-        .filter(Boolean)
-    ),
-  ].sort();
+  /*
+   * 기존 옵션을 모두 지우고
+   * 가장 위에 전체 지역을 추가한다.
+   */
+  regionSelect.innerHTML = "";
+
+  const allRegionOption =
+    document.createElement("option");
+
+  allRegionOption.value = "";
+  allRegionOption.textContent =
+    "전체 지역";
+
+  regionSelect.appendChild(
+    allRegionOption
+  );
+
+  /*
+   * Set은 값이 처음 들어온 순서를 유지한다.
+   *
+   * 따라서 CSV에서 처음 등장한 지역 순서가
+   * 지역 선택창에도 그대로 반영된다.
+   */
+  const regionSet =
+    new Set();
+
+  apartmentData.forEach(row => {
+    const region =
+      makeRegionName(row);
+
+    if (region) {
+      regionSet.add(region);
+    }
+  });
+
+  const regions =
+    [...regionSet];
 
   regions.forEach(region => {
-    const option = document.createElement("option");
+    const option =
+      document.createElement("option");
 
     option.value = region;
     option.textContent = region;
@@ -551,20 +590,35 @@ function makeRegionSelect() {
     regionSelect.appendChild(option);
   });
 
-  /*
-   * 처음 접속했을 때 전국 단지를 모두 불러오면
-   * 속도가 느려질 수 있으므로 첫 번째 지역을 기본 표시한다.
-   *
-   * 사용자가 '전체 지역'을 직접 선택하면
-   * selectedRegion이 빈 문자열이 되어 전국 단지를 표시한다.
-   */
-  if (regions.length > 0) {
-    selectedRegion = regions[0];
-    regionSelect.value = selectedRegion;
-
-    renderApartmentList();
-    drawSelectedRegion(true);
+  if (
+    previousSelectedRegion &&
+    regions.includes(previousSelectedRegion)
+  ) {
+    /*
+     * CSV 최신화 전 선택했던 지역이 남아 있으면
+     * 그 지역을 그대로 유지한다.
+     */
+    regionSelect.value =
+      previousSelectedRegion;
+  } else if (regions.length > 0) {
+    /*
+     * 첫 접속이거나 기존 지역이 사라진 경우에는
+     * CSV에 가장 먼저 나오는 지역을 기본 선택한다.
+     *
+     * 전체 지역을 처음부터 표시하면
+     * 좌표 검색과 정보박스 생성량이 너무 많아질 수 있다.
+     */
+    regionSelect.value =
+      regions[0];
+  } else {
+    regionSelect.value = "";
   }
+
+  /*
+   * 선택창과 실제 필터에 사용하는 전역 상태를 일치시킨다.
+   */
+  selectedRegion =
+    regionSelect.value;
 }
 
 function makeRegionName(row) {
