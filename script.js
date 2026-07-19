@@ -453,20 +453,57 @@ refreshDataBtn.addEventListener(
     );
 
     try {
-      /*
-       * 현재 시간값을 주소에 붙여
-       * 브라우저와 중간 캐시를 우회한다.
-       */
-      const refreshUrl =
-        GOOGLE_SHEET_CSV_URL +
-        "&t=" +
-        Date.now();
+      let latestCsv = null;
+      let lastError = null;
 
-      const latestCsv =
-        await fetchCsvWithTimeout(
-          refreshUrl,
-          30000
-        );
+      /*
+       * 일시적인 응답 지연이나 요청 실패에 대비해
+       * 최대 2번까지 자동으로 시도한다.
+       */
+      for (
+        let attempt = 1;
+        attempt <= 2;
+        attempt++
+      ) {
+        try {
+          const refreshUrl =
+            GOOGLE_SHEET_CSV_URL +
+            "&t=" +
+            Date.now();
+
+          latestCsv =
+            await fetchCsvWithTimeout(
+              refreshUrl,
+              15000
+            );
+
+          break;
+        } catch (error) {
+          lastError = error;
+
+          console.warn(
+            `최신 시세 불러오기 ${attempt}차 시도 실패:`,
+            error
+          );
+
+          if (attempt < 2) {
+            refreshDataBtn.textContent =
+              "🔄 다시 불러오는 중";
+
+            await new Promise(
+              (resolve) =>
+                setTimeout(
+                  resolve,
+                  800
+                )
+            );
+          }
+        }
+      }
+
+      if (!latestCsv) {
+        throw lastError;
+      }
 
       /*
        * 최신 CSV를 브라우저 캐시에 저장한다.
@@ -502,8 +539,9 @@ refreshDataBtn.addEventListener(
         "⚠️ 다시 시도";
 
       alert(
-        "최신 시세를 불러오지 못했습니다.\n" +
-        "인터넷 연결을 확인한 뒤 다시 시도해 주세요."
+        "최신 시세 데이터를 불러오는 과정에서\n" +
+        "일시적인 오류가 발생했습니다.\n\n" +
+        "잠시 후 최신 시세 버튼을 다시 눌러 주세요."
       );
 
       setTimeout(() => {
