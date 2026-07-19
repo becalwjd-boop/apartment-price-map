@@ -20,7 +20,6 @@ let latestCurrentPosition = null;
 let currentLocationDirectionElement = null;
 let currentLocationHeading = 0;
 let previousLocationCoords = null;
-let hasAcceptedCurrentLocation = false;
 const ps = new kakao.maps.services.Places();
 
 const zoomControl = new kakao.maps.ZoomControl();
@@ -2126,37 +2125,6 @@ if (currentLocationBtn) {
 
             const accuracy =
               position.coords.accuracy;
-
-            /*
-             * 최초 위치는 오차가 100m 이하일 때만 사용한다.
-             *
-             * 최초 위치가 잡힌 뒤에는 이동 중 갱신이
-             * 끊기지 않도록 150m 이하까지 허용한다.
-             */
-            const maximumAllowedAccuracy =
-              hasAcceptedCurrentLocation
-                ? 150
-                : 200;
-
-            if (
-              !Number.isFinite(accuracy) ||
-              accuracy >
-              maximumAllowedAccuracy
-            ) {
-              console.log(
-                "정확도가 낮아 GPS 좌표 사용 보류:",
-                {
-                  latitude: lat,
-                  longitude: lng,
-                  accuracy,
-                  maximumAllowedAccuracy,
-                }
-              );
-
-              return;
-            }
-
-            hasAcceptedCurrentLocation = true;
 
             const currentPosition =
               new kakao.maps.LatLng(
