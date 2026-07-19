@@ -10,6 +10,16 @@ const mapOption = {
 };
 
 const map = new kakao.maps.Map(mapContainer, mapOption);
+let currentLocationMarker = null;
+let currentLocationAccuracyCircle = null;
+let currentLocationWatchId = null;
+let isFollowingCurrentLocation = false;
+let hasCenteredCurrentLocation = false;
+let latestCurrentPosition = null;
+
+let currentLocationDirectionElement = null;
+let currentLocationHeading = 0;
+let previousLocationCoords = null;
 const ps = new kakao.maps.services.Places();
 
 const zoomControl = new kakao.maps.ZoomControl();
@@ -1941,3 +1951,442 @@ document
   });
 
 applyOverlayFontScale();
+
+/*
+ * 각도를 0~360도 범위로 정리한다.
+ */
+function normalizeHeading(heading) {
+  return (heading + 360) % 360;
+}
+
+/*
+ * 이전 GPS 좌표와 현재 GPS 좌표를 이용해
+ * 실제 이동 방향을 계산한다.
+ */
+function calculateMovementHeading(
+  previousCoords,
+  currentCoords
+) {
+  const previousLat =
+    previousCoords.latitude *
+    Math.PI /
+    180;
+
+  const currentLat =
+    currentCoords.latitude *
+    Math.PI /
+    180;
+
+  const longitudeDifference =
+    (
+      currentCoords.longitude -
+      previousCoords.longitude
+    ) *
+    Math.PI /
+    180;
+
+  const y =
+    Math.sin(longitudeDifference) *
+    Math.cos(currentLat);
+
+  const x =
+    Math.cos(previousLat) *
+    Math.sin(currentLat) -
+    Math.sin(previousLat) *
+    Math.cos(currentLat) *
+    Math.cos(longitudeDifference);
+
+  const heading =
+    Math.atan2(y, x) *
+    180 /
+    Math.PI;
+
+  return normalizeHeading(heading);
+}
+
+/*
+ * 현재 위치 화살표를 이동 방향에 맞춰 회전한다.
+ */
+function updateCurrentLocationHeading(
+  heading
+) {
+  if (!Number.isFinite(heading)) {
+    return;
+  }
+
+  currentLocationHeading =
+    normalizeHeading(heading);
+
+  if (
+    currentLocationDirectionElement
+  ) {
+    currentLocationDirectionElement.style.transform =
+      `translateX(-50%) rotate(${currentLocationHeading}deg)`;
+  }
+}
+
+/* =========================
+   현재 위치(GPS v4)
+   - 실시간 위치 추적
+   - 현재 위치 따라가기
+   - 지도 드래그 시 따라가기 해제
+========================= */
+
+const currentLocationBtn =
+  document.getElementById("currentLocationBtn");
+
+/*
+ * 현재 위치 따라가기 상태를 변경한다.
+ */
+function setCurrentLocationFollowMode(enabled) {
+  isFollowingCurrentLocation = enabled;
+
+  if (!currentLocationBtn) {
+    return;
+  }
+
+  currentLocationBtn.setAttribute(
+    "aria-pressed",
+    String(enabled)
+  );
+
+  currentLocationBtn.title = enabled
+    ? "현재 위치 따라가기 사용 중"
+    : "현재 위치로 이동";
+}
+
+/*
+ * 사용자가 지도를 직접 드래그하면
+ * 현재 위치 따라가기만 해제한다.
+ *
+ * GPS 위치 수집과 파란 점 갱신은 계속 유지한다.
+ */
+kakao.maps.event.addListener(
+  map,
+  "dragstart",
+  function () {
+    if (!isFollowingCurrentLocation) {
+      return;
+    }
+
+    setCurrentLocationFollowMode(false);
+
+    console.log(
+      "사용자 지도 이동으로 현재 위치 따라가기 해제"
+    );
+  }
+);
+
+if (currentLocationBtn) {
+  currentLocationBtn.addEventListener(
+    "click",
+    function () {
+      if (!navigator.geolocation) {
+        alert(
+          "현재 브라우저에서는 위치 기능을 지원하지 않습니다."
+        );
+
+        return;
+      }
+
+      /*
+       * 이미 GPS 추적 중이라면 새로 시작하지 않고
+       * 따라가기 모드만 다시 활성화한다.
+       */
+      if (currentLocationWatchId !== null) {
+        setCurrentLocationFollowMode(true);
+
+        if (latestCurrentPosition) {
+          map.setCenter(
+            latestCurrentPosition
+          );
+        }
+
+        return;
+      }
+
+      /*
+       * 최초 클릭에서는 GPS 추적과
+       * 현재 위치 따라가기를 함께 시작한다.
+       */
+      setCurrentLocationFollowMode(true);
+
+      hasCenteredCurrentLocation = false;
+      currentLocationBtn.disabled = true;
+
+      currentLocationWatchId =
+        navigator.geolocation.watchPosition(
+          function (position) {
+            const lat =
+              position.coords.latitude;
+
+            const lng =
+              position.coords.longitude;
+
+            const currentPosition =
+              new kakao.maps.LatLng(
+                lat,
+                lng
+              );
+
+            const currentCoords = {
+              latitude: lat,
+              longitude: lng,
+            };
+
+            /*
+             * 브라우저가 이동 방향을 제공하면 우선 사용한다.
+             *
+             * 제공하지 않는 경우에는 이전 GPS 좌표와
+             * 현재 GPS 좌표를 비교해 이동 방향을 계산한다.
+             */
+            if (
+              Number.isFinite(
+                position.coords.heading
+              ) &&
+              position.coords.heading >= 0
+            ) {
+              updateCurrentLocationHeading(
+                position.coords.heading
+              );
+            } else if (previousLocationCoords) {
+              const latDifference =
+                Math.abs(
+                  currentCoords.latitude -
+                  previousLocationCoords.latitude
+                );
+
+              const lngDifference =
+                Math.abs(
+                  currentCoords.longitude -
+                  previousLocationCoords.longitude
+                );
+
+              /*
+               * 아주 작은 GPS 흔들림은 방향 변경으로
+               * 처리하지 않는다.
+               */
+              if (
+                latDifference > 0.00001 ||
+                lngDifference > 0.00001
+              ) {
+                updateCurrentLocationHeading(
+                  calculateMovementHeading(
+                    previousLocationCoords,
+                    currentCoords
+                  )
+                );
+              }
+            }
+
+            previousLocationCoords =
+              currentCoords;
+
+            /*
+             * 최신 위치를 저장해 두었다가
+             * 버튼 재클릭 시 즉시 사용한다.
+             */
+            latestCurrentPosition =
+              currentPosition;
+
+            /*
+             * 현재 위치 점이 이미 있으면
+             * 좌표만 갱신한다.
+             */
+            if (currentLocationMarker) {
+              currentLocationMarker.setPosition(
+                currentPosition
+              );
+            } else {
+              const markerContent =
+                document.createElement("div");
+
+              markerContent.setAttribute(
+                "aria-label",
+                "현재 위치"
+              );
+
+              Object.assign(
+                markerContent.style,
+                {
+                  position: "relative",
+                  width: "42px",
+                  height: "42px",
+                  pointerEvents: "none",
+                }
+              );
+
+              /*
+               * 실제 이동 방향을 나타내는 파란 화살표다.
+               */
+              const directionElement =
+                document.createElement("div");
+
+              Object.assign(
+                directionElement.style,
+                {
+                  position: "absolute",
+                  left: "50%",
+                  top: "0",
+                  width: "0",
+                  height: "0",
+                  borderLeft:
+                    "7px solid transparent",
+                  borderRight:
+                    "7px solid transparent",
+                  borderBottom:
+                    "17px solid #1687ff",
+                  transformOrigin:
+                    "50% 21px",
+                  transform:
+                    `translateX(-50%) rotate(${currentLocationHeading}deg)`,
+                  filter:
+                    "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))",
+                  zIndex: "1",
+                }
+              );
+
+              const locationDot =
+                document.createElement("div");
+
+              Object.assign(
+                locationDot.style,
+                {
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: "18px",
+                  height: "18px",
+                  background: "#1687ff",
+                  border: "4px solid #ffffff",
+                  borderRadius: "50%",
+                  boxSizing: "border-box",
+                  transform:
+                    "translate(-50%, -50%)",
+                  boxShadow:
+                    "0 1px 6px rgba(0, 0, 0, 0.4)",
+                  zIndex: "2",
+                }
+              );
+
+              markerContent.appendChild(
+                directionElement
+              );
+
+              markerContent.appendChild(
+                locationDot
+              );
+
+              currentLocationDirectionElement =
+                directionElement;
+
+              currentLocationMarker =
+                new kakao.maps.CustomOverlay({
+                  map,
+                  position:
+                    currentPosition,
+                  content:
+                    markerContent,
+                  xAnchor: 0.5,
+                  yAnchor: 0.5,
+                  zIndex: 20,
+                });
+            }
+
+            /*
+             * 따라가기 모드일 때만
+             * 지도 중심을 현재 위치로 이동한다.
+             */
+            if (isFollowingCurrentLocation) {
+              map.setCenter(
+                currentPosition
+              );
+            }
+
+            /*
+             * 최초 위치 확인 때만
+             * 지도 확대 수준을 조정한다.
+             */
+            if (
+              !hasCenteredCurrentLocation
+            ) {
+              map.setLevel(3);
+
+              hasCenteredCurrentLocation =
+                true;
+
+              currentLocationBtn.disabled =
+                false;
+            }
+
+            console.log(
+              "현재 위치 실시간 갱신:",
+              {
+                latitude: lat,
+                longitude: lng,
+                following:
+                  isFollowingCurrentLocation,
+              }
+            );
+          },
+
+          function (error) {
+            currentLocationBtn.disabled =
+              false;
+
+            setCurrentLocationFollowMode(
+              false
+            );
+
+            if (
+              currentLocationWatchId !==
+              null
+            ) {
+              navigator.geolocation.clearWatch(
+                currentLocationWatchId
+              );
+
+              currentLocationWatchId =
+                null;
+            }
+
+            console.error(
+              "현재 위치 추적 실패:",
+              error
+            );
+
+            let errorMessage =
+              "현재 위치를 가져오지 못했습니다.";
+
+            if (
+              error.code ===
+              error.PERMISSION_DENIED
+            ) {
+              errorMessage =
+                "위치 권한이 차단되어 있습니다.\n브라우저의 위치 권한을 허용해 주세요.";
+            } else if (
+              error.code ===
+              error.POSITION_UNAVAILABLE
+            ) {
+              errorMessage =
+                "현재 위치 정보를 확인할 수 없습니다.";
+            } else if (
+              error.code ===
+              error.TIMEOUT
+            ) {
+              errorMessage =
+                "현재 위치를 확인하는 데 시간이 오래 걸렸습니다.\n다시 시도해 주세요.";
+            }
+
+            alert(errorMessage);
+          },
+
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 1000,
+          }
+        );
+    }
+  );
+}

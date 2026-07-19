@@ -1132,3 +1132,95 @@ applyOverlayFontScale();
     white-space: nowrap;
   }
 }
+
+/* =========================
+   현재 위치 플로팅 버튼
+========================= */
+
+.map-area {
+  position: relative;
+}
+
+.current-location-fab {
+  position: absolute;
+  right: 18px;
+  bottom: 58px;
+  z-index: 40;
+
+  width: 48px;
+  height: 48px;
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d7dce2;
+  border-radius: 50%;
+
+  background: #ffffff;
+  color: #202124;
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.18),
+    0 6px 18px rgba(0, 0, 0, 0.12);
+
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.current-location-fab:hover {
+  background: #f7f8fa;
+}
+
+.current-location-fab:active {
+  transform: scale(0.94);
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.18),
+    0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+.current-location-fab.is-locating {
+  color: #1a73e8;
+}
+
+.current-location-fab.is-following {
+  color: #ffffff;
+  background: #1a73e8;
+  border-color: #1a73e8;
+}
+
+.current-location-fab:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.current-location-svg {
+  width: 25px;
+  height: 25px;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 768px) {
+  .current-location-fab {
+    right: 14px;
+    bottom: 62px;
+
+    width: 48px;
+    height: 48px;
+  }
+
+  .current-location-svg {
+    width: 25px;
+    height: 25px;
+  }
+}
