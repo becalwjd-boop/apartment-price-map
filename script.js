@@ -20,6 +20,7 @@ let latestCurrentPosition = null;
 let currentLocationDirectionElement = null;
 let currentLocationHeading = 0;
 let previousLocationCoords = null;
+let hasAcceptedCurrentLocation = false;
 const ps = new kakao.maps.services.Places();
 
 const zoomControl = new kakao.maps.ZoomControl();
@@ -2123,6 +2124,40 @@ if (currentLocationBtn) {
             const lng =
               position.coords.longitude;
 
+            const accuracy =
+              position.coords.accuracy;
+
+            /*
+             * 최초 위치는 오차가 100m 이하일 때만 사용한다.
+             *
+             * 최초 위치가 잡힌 뒤에는 이동 중 갱신이
+             * 끊기지 않도록 150m 이하까지 허용한다.
+             */
+            const maximumAllowedAccuracy =
+              hasAcceptedCurrentLocation
+                ? 150
+                : 200;
+
+            if (
+              !Number.isFinite(accuracy) ||
+              accuracy >
+              maximumAllowedAccuracy
+            ) {
+              console.log(
+                "정확도가 낮아 GPS 좌표 사용 보류:",
+                {
+                  latitude: lat,
+                  longitude: lng,
+                  accuracy,
+                  maximumAllowedAccuracy,
+                }
+              );
+
+              return;
+            }
+
+            hasAcceptedCurrentLocation = true;
+
             const currentPosition =
               new kakao.maps.LatLng(
                 lat,
@@ -2210,8 +2245,8 @@ if (currentLocationBtn) {
                 markerContent.style,
                 {
                   position: "relative",
-                  width: "42px",
-                  height: "42px",
+                  width: "58px",
+                  height: "58px",
                   pointerEvents: "none",
                 }
               );
@@ -2231,13 +2266,13 @@ if (currentLocationBtn) {
                   width: "0",
                   height: "0",
                   borderLeft:
-                    "7px solid transparent",
+                    "11px solid transparent",
                   borderRight:
-                    "7px solid transparent",
+                    "11px solid transparent",
                   borderBottom:
-                    "17px solid #1687ff",
+                    "27px solid #1687ff",
                   transformOrigin:
-                    "50% 21px",
+                    "50% 29px",
                   transform:
                     `translateX(-50%) rotate(${currentLocationHeading}deg)`,
                   filter:
@@ -2255,16 +2290,16 @@ if (currentLocationBtn) {
                   position: "absolute",
                   left: "50%",
                   top: "50%",
-                  width: "18px",
-                  height: "18px",
+                  width: "26px",
+                  height: "26px",
                   background: "#1687ff",
-                  border: "4px solid #ffffff",
+                  border: "5px solid #ffffff",
                   borderRadius: "50%",
                   boxSizing: "border-box",
                   transform:
                     "translate(-50%, -50%)",
                   boxShadow:
-                    "0 1px 6px rgba(0, 0, 0, 0.4)",
+                    "0 2px 8px rgba(0, 0, 0, 0.38)",
                   zIndex: "2",
                 }
               );
@@ -2324,6 +2359,7 @@ if (currentLocationBtn) {
               {
                 latitude: lat,
                 longitude: lng,
+                accuracy,
                 following:
                   isFollowingCurrentLocation,
               }
